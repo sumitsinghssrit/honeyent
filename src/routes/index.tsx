@@ -75,8 +75,8 @@ function Dashboard() {
             <Button variant="outline" asChild>
               <Link to="/reports">View reports</Link>
             </Button>
-            <Button asChild>
-              <Link to="/orders">New order</Link>
+            <Button onClick={() => setOneShot(true)}>
+              <Sparkles className="mr-1 h-4 w-4" />One-Shot Order
             </Button>
           </>
         }
