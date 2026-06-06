@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { loadCompany } from "./company";
 
 export interface PdfOptions {
   title: string;
@@ -10,8 +11,9 @@ export interface PdfOptions {
   totals?: { label: string; value: string }[];
 }
 
-const BRAND = "HONEY ENTERPRISES";
-const TAGLINE = "Stone Crusher • Aggregate Trading • Transport";
+function company() {
+  return loadCompany();
+}
 
 export function generatePdf(opts: PdfOptions): void {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
