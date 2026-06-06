@@ -138,7 +138,8 @@ function OrdersPage() {
         actions={
           <>
             <Button variant="outline" size="sm" onClick={exportPdf}><Download className="mr-1 h-4 w-4" />Export PDF</Button>
-            <Button size="sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus className="mr-1 h-4 w-4" />New order</Button>
+            <Button variant="outline" size="sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus className="mr-1 h-4 w-4" />Manual</Button>
+            <Button size="sm" onClick={() => setOneShot(true)}><Sparkles className="mr-1 h-4 w-4" />One-Shot Order</Button>
           </>
         }
       />
@@ -220,6 +221,8 @@ function OrdersPage() {
           }
         }}
       />
+
+      <OneShotOrderDialog open={oneShot} onOpenChange={setOneShot} />
     </div>
   );
 }
