@@ -201,6 +201,8 @@ function Dashboard() {
           </div>
         </div>
       </div>
+
+      <OneShotOrderDialog open={oneShot} onOpenChange={setOneShot} />
     </div>
   );
 }
