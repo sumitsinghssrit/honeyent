@@ -46,6 +46,6 @@ export function checkProduct(code: string, name: string, o: DupeOpts = {}): stri
 export function checkDocNo(kind: "orders" | "weighSlips" | "trips" | "salesInvoices" | "purchaseInvoices", no: string): string | null {
   const s = useErp.getState();
   const field = kind === "weighSlips" ? "slipNo" : kind === "trips" ? "tripNo" : "no";
-  const list = s[kind] as Array<Record<string, unknown>>;
+  const list = s[kind] as unknown as Array<Record<string, unknown>>;
   return list.some((it) => (it[field] as string) === no) ? `Document ${no} already exists` : null;
 }
