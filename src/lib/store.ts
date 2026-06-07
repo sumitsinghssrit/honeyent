@@ -76,6 +76,7 @@ interface State {
   trips: CTrip[];
   salesInvoices: CInvoice[];
   purchaseInvoices: CInvoice[];
+  payments: Payment[];
 }
 
 interface Actions {
@@ -97,6 +98,7 @@ const initial: State = {
   trips: seedTrips,
   salesInvoices: seedSales,
   purchaseInvoices: seedPurchases,
+  payments: [],
 };
 
 const noopStorage = {
