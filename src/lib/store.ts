@@ -50,7 +50,20 @@ export type EntityKey =
   | "weighSlips"
   | "trips"
   | "salesInvoices"
-  | "purchaseInvoices";
+  | "purchaseInvoices"
+  | "payments";
+
+export interface Payment extends Cancelable {
+  id: string;
+  no: string;
+  date: string;
+  direction: "In" | "Out";
+  party: string;
+  mode: "Cash" | "Bank" | "UPI" | "Cheque";
+  amount: number;
+  reference?: string;
+  note?: string;
+}
 
 interface State {
   customers: CCustomer[];
