@@ -151,7 +151,7 @@ function LedgerPage() {
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {parties.map((p) => {
                 const bal = balanceFor(p.name, side);
-                const limit = "creditLimit" in p ? p.creditLimit : 0;
+                const limit = "creditLimit" in p ? Number(p.creditLimit) : 0;
                 const overLimit = side === "customer" && limit > 0 && bal > limit;
                 return (
                   <div key={p.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
