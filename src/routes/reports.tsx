@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Users, Factory, Truck, IdCard, Package, FileText, Receipt,
-  Route as RouteIcon, Scale, TrendingUp, Eye,
+  Route as RouteIcon, Scale, TrendingUp, Eye, Wrench, CalendarDays,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useErp, active } from "@/lib/store";
 import { inr, daysUntil } from "@/lib/mock-data";
 import { ReportView, type ReportData } from "@/components/report-view";
+import { DateRangeFilter, EMPTY_RANGE, inRange, type DateRange } from "@/components/date-range-filter";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({ meta: [{ title: "Reports — Honey Enterprises ERP" }] }),
@@ -19,14 +20,15 @@ export const Route = createFileRoute("/reports")({
 type ReportKey =
   | "cust-outstanding" | "cust-sales" | "cust-ledger" | "cust-dispatch"
   | "sup-purchase" | "sup-ledger" | "sup-payables"
-  | "veh-pl" | "veh-expiry" | "veh-mileage"
-  | "drv-trips" | "drv-salary"
+  | "veh-pl" | "veh-expiry" | "veh-mileage" | "veh-maint"
+  | "drv-trips" | "drv-salary" | "drv-salary-reg"
   | "prod-sales" | "prod-rate" | "hsn-summary"
   | "trip-pl" | "trip-route" | "trip-cust"
   | "wb-loss" | "wb-compare"
   | "fin-pl" | "fin-bs" | "fin-tb"
   | "gst-r1" | "gst-r3b" | "gst-eway"
-  | "perf-daily" | "perf-monthly" | "perf-aging" | "top-customers";
+  | "perf-daily" | "perf-monthly" | "perf-aging" | "top-customers"
+  | "ops-daily" | "exp-summary" | "exp-register";
 
 function ReportsPage() {
   const customers = useErp((s) => s.customers);
@@ -34,19 +36,30 @@ function ReportsPage() {
   const vehicles = useErp((s) => s.vehicles);
   const drivers = useErp((s) => s.drivers);
   const products = useErp((s) => s.products);
-  const orders = useErp((s) => s.orders);
-  const trips = useErp((s) => s.trips);
-  const slips = useErp((s) => s.weighSlips);
-  const sales = useErp((s) => s.salesInvoices);
-  const purchases = useErp((s) => s.purchaseInvoices);
+  const allOrders = useErp((s) => s.orders);
+  const allTrips = useErp((s) => s.trips);
+  const allSlips = useErp((s) => s.weighSlips);
+  const allSales = useErp((s) => s.salesInvoices);
+  const allPurchases = useErp((s) => s.purchaseInvoices);
+  const allExpenses = useErp((s) => s.expenses);
 
   const [view, setView] = useState<ReportData | null>(null);
+  const [range, setRange] = useState<DateRange>(EMPTY_RANGE);
+
+  // Apply date filter to all date-bearing entities
+  const orders = useMemo(() => allOrders.filter((o) => inRange(o.date, range)), [allOrders, range]);
+  const trips = useMemo(() => allTrips.filter((t) => inRange(t.date, range)), [allTrips, range]);
+  const slips = useMemo(() => allSlips.filter((w) => inRange(w.date, range)), [allSlips, range]);
+  const sales = useMemo(() => allSales.filter((i) => inRange(i.date, range)), [allSales, range]);
+  const purchases = useMemo(() => allPurchases.filter((i) => inRange(i.date, range)), [allPurchases, range]);
+  const expenses = useMemo(() => allExpenses.filter((e) => inRange(e.date, range)), [allExpenses, range]);
 
   function build(key: ReportKey, title: string): ReportData {
     let head: string[] = [];
     let body: (string | number)[][] = [];
     let totals: { label: string; value: string }[] | undefined;
-    const subtitle = `Generated ${new Date().toLocaleDateString("en-IN")} • Cancelled records excluded`;
+    const rangeNote = range.from || range.to ? ` • ${range.from || "…"} → ${range.to || "…"}` : " • All dates";
+    const subtitle = `Generated ${new Date().toLocaleDateString("en-IN")}${rangeNote} • Cancelled records excluded`;
 
     switch (key) {
       case "cust-outstanding":
@@ -229,6 +242,60 @@ function ReportsPage() {
         body = rows.map((r, i) => [i + 1, r.n, r.mt, inr(r.v)]);
         break;
       }
+      case "ops-daily": {
+        const byDay = new Map<string, { orders: number; mt: number; value: number; trips: number; rev: number; exp: number }>();
+        active(orders).forEach((o) => {
+          const r = byDay.get(o.date) ?? { orders: 0, mt: 0, value: 0, trips: 0, rev: 0, exp: 0 };
+          r.orders += 1; r.mt += o.qty; r.value += o.qty * o.rate;
+          byDay.set(o.date, r);
+        });
+        active(trips).forEach((t) => {
+          const r = byDay.get(t.date) ?? { orders: 0, mt: 0, value: 0, trips: 0, rev: 0, exp: 0 };
+          r.trips += 1; r.rev += t.revenue; r.exp += t.expense;
+          byDay.set(t.date, r);
+        });
+        const rows = Array.from(byDay.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+        head = ["Date", "Orders", "Total MT", "Order Value", "Trips", "Freight Rev", "Trip Exp", "Net"];
+        body = rows.map(([d, r]) => [d, r.orders, r.mt, inr(r.value), r.trips, inr(r.rev), inr(r.exp), inr(r.rev - r.exp)]);
+        totals = [
+          { label: "Days", value: String(rows.length) },
+          { label: "Total order value", value: inr(rows.reduce((a, [, r]) => a + r.value, 0)) },
+          { label: "Net freight P&L", value: inr(rows.reduce((a, [, r]) => a + (r.rev - r.exp), 0)) },
+        ];
+        break;
+      }
+      case "exp-summary": {
+        const byCat = new Map<string, { count: number; amount: number }>();
+        active(expenses).forEach((e) => {
+          const r = byCat.get(e.category) ?? { count: 0, amount: 0 };
+          r.count += 1; r.amount += e.amount;
+          byCat.set(e.category, r);
+        });
+        const rows = Array.from(byCat.entries()).sort((a, b) => b[1].amount - a[1].amount);
+        head = ["Category", "Vouchers", "Amount"];
+        body = rows.map(([c, r]) => [c, r.count, inr(r.amount)]);
+        totals = [{ label: "Total expenses", value: inr(rows.reduce((a, [, r]) => a + r.amount, 0)) }];
+        break;
+      }
+      case "exp-register":
+        head = ["Voucher", "Date", "Category", "Paid To", "Vehicle/Driver", "Mode", "Amount"];
+        body = active(expenses).map((e) => [e.no, e.date, e.category, e.paidTo, e.vehicle || e.driver || "—", e.mode, inr(e.amount)]);
+        totals = [{ label: "Total", value: inr(active(expenses).reduce((a, e) => a + e.amount, 0)) }];
+        break;
+      case "drv-salary-reg": {
+        const list = active(expenses).filter((e) => e.category === "Driver Salary");
+        head = ["Voucher", "Date", "Driver", "Mode", "Amount", "Remark"];
+        body = list.map((e) => [e.no, e.date, e.driver || e.paidTo, e.mode, inr(e.amount), e.remark || ""]);
+        totals = [{ label: "Total salary paid", value: inr(list.reduce((a, e) => a + e.amount, 0)) }];
+        break;
+      }
+      case "veh-maint": {
+        const list = active(expenses).filter((e) => e.category === "Truck Repair" || e.category === "Truck Maintenance" || e.category === "Tyre");
+        head = ["Voucher", "Date", "Vehicle", "Category", "Vendor", "Amount", "Remark"];
+        body = list.map((e) => [e.no, e.date, e.vehicle || "—", e.category, e.paidTo, inr(e.amount), e.remark || ""]);
+        totals = [{ label: "Total maintenance", value: inr(list.reduce((a, e) => a + e.amount, 0)) }];
+        break;
+      }
     }
     return { title, subtitle, head, body, totals };
   }
@@ -250,10 +317,12 @@ function ReportsPage() {
       { label: "Truck Profitability", key: "veh-pl" },
       { label: "Document Expiry", key: "veh-expiry" },
       { label: "Fleet Master", key: "veh-mileage" },
+      { label: "Vehicle Maintenance", key: "veh-maint" },
     ]},
     { group: "Drivers", icon: IdCard, items: [
       { label: "Trips per Driver", key: "drv-trips" },
       { label: "Driver Master", key: "drv-salary" },
+      { label: "Driver Salary Register", key: "drv-salary-reg" },
     ]},
     { group: "Products", icon: Package, items: [
       { label: "Product-wise Sales", key: "prod-sales" },
@@ -281,8 +350,15 @@ function ReportsPage() {
     ]},
     { group: "Performance", icon: TrendingUp, items: [
       { label: "Daily Snapshot", key: "perf-daily" },
+      { label: "Daily Operations", key: "ops-daily" },
       { label: "Monthly P&L", key: "perf-monthly" },
       { label: "Outstanding Aging", key: "perf-aging" },
+    ]},
+    { group: "Expenses", icon: Wrench, items: [
+      { label: "Expense Register", key: "exp-register" },
+      { label: "Category Summary", key: "exp-summary" },
+      { label: "Driver Salary Register", key: "drv-salary-reg" },
+      { label: "Vehicle Maintenance", key: "veh-maint" },
     ]},
   ];
 
@@ -290,8 +366,15 @@ function ReportsPage() {
     <div>
       <PageHeader
         title="Reports"
-        description="Click any report to view on screen, then download PDF or share via WhatsApp / Email. Cancelled documents are excluded."
+        description="Pick a date range, click any report to view, then download PDF or share via WhatsApp / Email."
       />
+      <div className="flex flex-wrap items-center gap-3 px-6 pt-6">
+        <DateRangeFilter value={range} onChange={setRange} />
+        <span className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-1 text-[11px] text-muted-foreground">
+          <CalendarDays className="h-3 w-3" />
+          {range.from || range.to ? `${range.from || "…"} → ${range.to || "…"}` : "All dates"} — applies to every report
+        </span>
+      </div>
       <div className="grid gap-4 p-6 md:grid-cols-2 lg:grid-cols-3">
         {groups.map((r) => (
           <div key={r.group} className="rounded-xl border border-border bg-card p-5 shadow-sm">

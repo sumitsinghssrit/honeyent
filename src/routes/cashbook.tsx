@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useErp, active, newId } from "@/lib/store";
 import { inr } from "@/lib/mock-data";
 import { generatePdf } from "@/lib/pdf";
+import { DateRangeFilter, inRange } from "@/components/date-range-filter";
 
 export const Route = createFileRoute("/cashbook")({
   head: () => ({ meta: [{ title: "Cashbook — Honey Enterprises ERP" }] }),
@@ -24,9 +25,11 @@ export const Route = createFileRoute("/cashbook")({
 function CashbookPage() {
   const payments = useErp((s) => s.payments);
   const trips = active(useErp((s) => s.trips));
+  const expenses = active(useErp((s) => s.expenses));
   const add = useErp((s) => s.add);
 
   const [open, setOpen] = useState(false);
+  const [range, setRange] = useState<import("@/components/date-range-filter").DateRange>({ from: "", to: "" });
 
   const movements = useMemo(() => {
     const out: { date: string; party: string; mode: string; direction: "In" | "Out"; amount: number; note: string; source: string }[] = [];
@@ -39,8 +42,14 @@ function CashbookPage() {
         date: t.date, party: `Trip ${t.tripNo} (${t.driver})`, mode: "Cash", direction: "Out", amount: t.expense, note: `${t.source} → ${t.destination}`, source: t.tripNo,
       });
     });
-    return out.sort((a, b) => b.date.localeCompare(a.date));
-  }, [payments, trips]);
+    expenses.forEach((e) => out.push({
+      date: e.date, party: `${e.category}: ${e.paidTo}`, mode: e.mode, direction: "Out", amount: e.amount,
+      note: [e.vehicle, e.driver, e.remark].filter(Boolean).join(" • "), source: e.no,
+    }));
+    return out
+      .filter((m) => inRange(m.date, range))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [payments, trips, expenses, range]);
 
   const totalIn = movements.filter((m) => m.direction === "In").reduce((a, m) => a + m.amount, 0);
   const totalOut = movements.filter((m) => m.direction === "Out").reduce((a, m) => a + m.amount, 0);
@@ -95,7 +104,8 @@ function CashbookPage() {
         <StatCard label="Net balance" value={inr(balance)} icon={Wallet} tone={balance >= 0 ? "primary" : "destructive"} />
       </div>
 
-      <div className="p-6">
+      <div className="space-y-3 p-6">
+        <DateRangeFilter value={range} onChange={setRange} />
         <div className="rounded-xl border border-border bg-card shadow-sm">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div className="flex items-center gap-2">
