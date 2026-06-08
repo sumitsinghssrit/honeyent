@@ -15,6 +15,7 @@ import { EntityDialog, CancelDialog, type FieldDef } from "@/components/entity-d
 import { generateDocPdf, generatePdf } from "@/lib/pdf";
 import { OneShotOrderDialog } from "@/components/one-shot-order";
 import { nextNo } from "@/lib/numbering";
+import { DateRangeFilter, EMPTY_RANGE, inRange, type DateRange } from "@/components/date-range-filter";
 
 export const Route = createFileRoute("/orders")({
   head: () => ({ meta: [{ title: "Orders — Honey Enterprises ERP" }] }),
@@ -35,6 +36,7 @@ function OrdersPage() {
 
   const [query, setQuery] = useState("");
   const [showActive, setShowActive] = useState(true);
+  const [range, setRange] = useState<DateRange>(EMPTY_RANGE);
   const [open, setOpen] = useState(false);
   const [oneShot, setOneShot] = useState(false);
   const [editing, setEditing] = useState<COrder | null>(null);
@@ -61,6 +63,7 @@ function OrdersPage() {
 
   const visible = orders.filter((o) => {
     if (showActive && o.cancelled) return false;
+    if (!inRange(o.date, range)) return false;
     if (!query) return true;
     const q = query.toLowerCase();
     return o.no.toLowerCase().includes(q) || o.customer.toLowerCase().includes(q) || o.vehicle.toLowerCase().includes(q);
@@ -143,7 +146,8 @@ function OrdersPage() {
           </>
         }
       />
-      <div className="p-6">
+      <div className="space-y-3 p-6">
+        <DateRangeFilter value={range} onChange={setRange} />
         <ListShell
           toolbar={
             <>
