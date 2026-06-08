@@ -16,6 +16,7 @@ import {
   Layers,
   BookOpen,
   Wallet,
+  Receipt,
 } from "lucide-react";
 
 import {
@@ -62,6 +63,7 @@ const sections = [
     items: [
       { title: "Ledger 360°", url: "/ledger", icon: BookOpen },
       { title: "Cashbook", url: "/cashbook", icon: Wallet },
+      { title: "Expenses", url: "/expenses", icon: Receipt },
       { title: "Reports", url: "/reports", icon: BarChart3 },
     ],
   },
