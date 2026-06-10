@@ -5,7 +5,6 @@ import {
   ShoppingCart,
   Scale,
   IndianRupee,
-  AlertTriangle,
   CalendarClock,
   TrendingUp,
   Route as RouteIcon,
@@ -27,7 +26,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  daysUntil,
   inr,
   statusTone,
 } from "@/lib/mock-data";
@@ -54,17 +52,6 @@ function Dashboard() {
   const todayProfit = trips.reduce((a, t) => a + (t.revenue - t.expense), 0);
   const outstanding = customers.reduce((a, c) => a + c.outstanding, 0);
   const inTransit = orders.filter((o) => o.status === "In Transit" || o.status === "Loaded").length;
-
-  const expiring = vehicles
-    .flatMap((v) => [
-      { vehicle: v.number, doc: "Insurance", date: v.insuranceExpiry },
-      { vehicle: v.number, doc: "Fitness", date: v.fitnessExpiry },
-      { vehicle: v.number, doc: "Permit", date: v.permitExpiry },
-    ])
-    .map((x) => ({ ...x, days: daysUntil(x.date) }))
-    .filter((x) => x.days <= 60)
-    .sort((a, b) => a.days - b.days)
-    .slice(0, 5);
 
   return (
     <div className="flex flex-col">
