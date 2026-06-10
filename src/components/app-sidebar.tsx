@@ -17,6 +17,8 @@ import {
   BookOpen,
   Wallet,
   Receipt,
+  RadioTower,
+  Crown,
 } from "lucide-react";
 
 import {
@@ -36,6 +38,8 @@ const sections = [
     label: "Overview",
     items: [
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
+      { title: "Control Tower", url: "/control-tower", icon: RadioTower },
+      { title: "Executive", url: "/executive", icon: Crown },
       { title: "Deals", url: "/deals", icon: Layers },
     ],
   },
