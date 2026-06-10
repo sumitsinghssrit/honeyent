@@ -19,12 +19,18 @@ import { Route as ProductsRouteImport } from './routes/products'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as LedgerRouteImport } from './routes/ledger'
 import { Route as ExpensesRouteImport } from './routes/expenses'
+import { Route as ExecutiveRouteImport } from './routes/executive'
 import { Route as DriversRouteImport } from './routes/drivers'
 import { Route as DispatchRouteImport } from './routes/dispatch'
 import { Route as DealsRouteImport } from './routes/deals'
 import { Route as CustomersRouteImport } from './routes/customers'
+import { Route as ControlTowerRouteImport } from './routes/control-tower'
 import { Route as CashbookRouteImport } from './routes/cashbook'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as VehiclesIdRouteImport } from './routes/vehicles.$id'
+import { Route as SuppliersIdRouteImport } from './routes/suppliers.$id'
+import { Route as DriversIdRouteImport } from './routes/drivers.$id'
+import { Route as CustomersIdRouteImport } from './routes/customers.$id'
 
 const WeighbridgeRoute = WeighbridgeRouteImport.update({
   id: '/weighbridge',
@@ -76,6 +82,11 @@ const ExpensesRoute = ExpensesRouteImport.update({
   path: '/expenses',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExecutiveRoute = ExecutiveRouteImport.update({
+  id: '/executive',
+  path: '/executive',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DriversRoute = DriversRouteImport.update({
   id: '/drivers',
   path: '/drivers',
@@ -96,6 +107,11 @@ const CustomersRoute = CustomersRouteImport.update({
   path: '/customers',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ControlTowerRoute = ControlTowerRouteImport.update({
+  id: '/control-tower',
+  path: '/control-tower',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CashbookRoute = CashbookRouteImport.update({
   id: '/cashbook',
   path: '/cashbook',
@@ -106,71 +122,111 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VehiclesIdRoute = VehiclesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => VehiclesRoute,
+} as any)
+const SuppliersIdRoute = SuppliersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => SuppliersRoute,
+} as any)
+const DriversIdRoute = DriversIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => DriversRoute,
+} as any)
+const CustomersIdRoute = CustomersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => CustomersRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/cashbook': typeof CashbookRoute
-  '/customers': typeof CustomersRoute
+  '/control-tower': typeof ControlTowerRoute
+  '/customers': typeof CustomersRouteWithChildren
   '/deals': typeof DealsRoute
   '/dispatch': typeof DispatchRoute
-  '/drivers': typeof DriversRoute
+  '/drivers': typeof DriversRouteWithChildren
+  '/executive': typeof ExecutiveRoute
   '/expenses': typeof ExpensesRoute
   '/ledger': typeof LedgerRoute
   '/orders': typeof OrdersRoute
   '/products': typeof ProductsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
-  '/suppliers': typeof SuppliersRoute
+  '/suppliers': typeof SuppliersRouteWithChildren
   '/trips': typeof TripsRoute
-  '/vehicles': typeof VehiclesRoute
+  '/vehicles': typeof VehiclesRouteWithChildren
   '/weighbridge': typeof WeighbridgeRoute
+  '/customers/$id': typeof CustomersIdRoute
+  '/drivers/$id': typeof DriversIdRoute
+  '/suppliers/$id': typeof SuppliersIdRoute
+  '/vehicles/$id': typeof VehiclesIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/cashbook': typeof CashbookRoute
-  '/customers': typeof CustomersRoute
+  '/control-tower': typeof ControlTowerRoute
+  '/customers': typeof CustomersRouteWithChildren
   '/deals': typeof DealsRoute
   '/dispatch': typeof DispatchRoute
-  '/drivers': typeof DriversRoute
+  '/drivers': typeof DriversRouteWithChildren
+  '/executive': typeof ExecutiveRoute
   '/expenses': typeof ExpensesRoute
   '/ledger': typeof LedgerRoute
   '/orders': typeof OrdersRoute
   '/products': typeof ProductsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
-  '/suppliers': typeof SuppliersRoute
+  '/suppliers': typeof SuppliersRouteWithChildren
   '/trips': typeof TripsRoute
-  '/vehicles': typeof VehiclesRoute
+  '/vehicles': typeof VehiclesRouteWithChildren
   '/weighbridge': typeof WeighbridgeRoute
+  '/customers/$id': typeof CustomersIdRoute
+  '/drivers/$id': typeof DriversIdRoute
+  '/suppliers/$id': typeof SuppliersIdRoute
+  '/vehicles/$id': typeof VehiclesIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/cashbook': typeof CashbookRoute
-  '/customers': typeof CustomersRoute
+  '/control-tower': typeof ControlTowerRoute
+  '/customers': typeof CustomersRouteWithChildren
   '/deals': typeof DealsRoute
   '/dispatch': typeof DispatchRoute
-  '/drivers': typeof DriversRoute
+  '/drivers': typeof DriversRouteWithChildren
+  '/executive': typeof ExecutiveRoute
   '/expenses': typeof ExpensesRoute
   '/ledger': typeof LedgerRoute
   '/orders': typeof OrdersRoute
   '/products': typeof ProductsRoute
   '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
-  '/suppliers': typeof SuppliersRoute
+  '/suppliers': typeof SuppliersRouteWithChildren
   '/trips': typeof TripsRoute
-  '/vehicles': typeof VehiclesRoute
+  '/vehicles': typeof VehiclesRouteWithChildren
   '/weighbridge': typeof WeighbridgeRoute
+  '/customers/$id': typeof CustomersIdRoute
+  '/drivers/$id': typeof DriversIdRoute
+  '/suppliers/$id': typeof SuppliersIdRoute
+  '/vehicles/$id': typeof VehiclesIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/cashbook'
+    | '/control-tower'
     | '/customers'
     | '/deals'
     | '/dispatch'
     | '/drivers'
+    | '/executive'
     | '/expenses'
     | '/ledger'
     | '/orders'
@@ -181,14 +237,20 @@ export interface FileRouteTypes {
     | '/trips'
     | '/vehicles'
     | '/weighbridge'
+    | '/customers/$id'
+    | '/drivers/$id'
+    | '/suppliers/$id'
+    | '/vehicles/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/cashbook'
+    | '/control-tower'
     | '/customers'
     | '/deals'
     | '/dispatch'
     | '/drivers'
+    | '/executive'
     | '/expenses'
     | '/ledger'
     | '/orders'
@@ -199,14 +261,20 @@ export interface FileRouteTypes {
     | '/trips'
     | '/vehicles'
     | '/weighbridge'
+    | '/customers/$id'
+    | '/drivers/$id'
+    | '/suppliers/$id'
+    | '/vehicles/$id'
   id:
     | '__root__'
     | '/'
     | '/cashbook'
+    | '/control-tower'
     | '/customers'
     | '/deals'
     | '/dispatch'
     | '/drivers'
+    | '/executive'
     | '/expenses'
     | '/ledger'
     | '/orders'
@@ -217,24 +285,30 @@ export interface FileRouteTypes {
     | '/trips'
     | '/vehicles'
     | '/weighbridge'
+    | '/customers/$id'
+    | '/drivers/$id'
+    | '/suppliers/$id'
+    | '/vehicles/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CashbookRoute: typeof CashbookRoute
-  CustomersRoute: typeof CustomersRoute
+  ControlTowerRoute: typeof ControlTowerRoute
+  CustomersRoute: typeof CustomersRouteWithChildren
   DealsRoute: typeof DealsRoute
   DispatchRoute: typeof DispatchRoute
-  DriversRoute: typeof DriversRoute
+  DriversRoute: typeof DriversRouteWithChildren
+  ExecutiveRoute: typeof ExecutiveRoute
   ExpensesRoute: typeof ExpensesRoute
   LedgerRoute: typeof LedgerRoute
   OrdersRoute: typeof OrdersRoute
   ProductsRoute: typeof ProductsRoute
   ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
-  SuppliersRoute: typeof SuppliersRoute
+  SuppliersRoute: typeof SuppliersRouteWithChildren
   TripsRoute: typeof TripsRoute
-  VehiclesRoute: typeof VehiclesRoute
+  VehiclesRoute: typeof VehiclesRouteWithChildren
   WeighbridgeRoute: typeof WeighbridgeRoute
 }
 
@@ -310,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExpensesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/executive': {
+      id: '/executive'
+      path: '/executive'
+      fullPath: '/executive'
+      preLoaderRoute: typeof ExecutiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/drivers': {
       id: '/drivers'
       path: '/drivers'
@@ -338,6 +419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/control-tower': {
+      id: '/control-tower'
+      path: '/control-tower'
+      fullPath: '/control-tower'
+      preLoaderRoute: typeof ControlTowerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cashbook': {
       id: '/cashbook'
       path: '/cashbook'
@@ -352,25 +440,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/vehicles/$id': {
+      id: '/vehicles/$id'
+      path: '/$id'
+      fullPath: '/vehicles/$id'
+      preLoaderRoute: typeof VehiclesIdRouteImport
+      parentRoute: typeof VehiclesRoute
+    }
+    '/suppliers/$id': {
+      id: '/suppliers/$id'
+      path: '/$id'
+      fullPath: '/suppliers/$id'
+      preLoaderRoute: typeof SuppliersIdRouteImport
+      parentRoute: typeof SuppliersRoute
+    }
+    '/drivers/$id': {
+      id: '/drivers/$id'
+      path: '/$id'
+      fullPath: '/drivers/$id'
+      preLoaderRoute: typeof DriversIdRouteImport
+      parentRoute: typeof DriversRoute
+    }
+    '/customers/$id': {
+      id: '/customers/$id'
+      path: '/$id'
+      fullPath: '/customers/$id'
+      preLoaderRoute: typeof CustomersIdRouteImport
+      parentRoute: typeof CustomersRoute
+    }
   }
 }
+
+interface CustomersRouteChildren {
+  CustomersIdRoute: typeof CustomersIdRoute
+}
+
+const CustomersRouteChildren: CustomersRouteChildren = {
+  CustomersIdRoute: CustomersIdRoute,
+}
+
+const CustomersRouteWithChildren = CustomersRoute._addFileChildren(
+  CustomersRouteChildren,
+)
+
+interface DriversRouteChildren {
+  DriversIdRoute: typeof DriversIdRoute
+}
+
+const DriversRouteChildren: DriversRouteChildren = {
+  DriversIdRoute: DriversIdRoute,
+}
+
+const DriversRouteWithChildren =
+  DriversRoute._addFileChildren(DriversRouteChildren)
+
+interface SuppliersRouteChildren {
+  SuppliersIdRoute: typeof SuppliersIdRoute
+}
+
+const SuppliersRouteChildren: SuppliersRouteChildren = {
+  SuppliersIdRoute: SuppliersIdRoute,
+}
+
+const SuppliersRouteWithChildren = SuppliersRoute._addFileChildren(
+  SuppliersRouteChildren,
+)
+
+interface VehiclesRouteChildren {
+  VehiclesIdRoute: typeof VehiclesIdRoute
+}
+
+const VehiclesRouteChildren: VehiclesRouteChildren = {
+  VehiclesIdRoute: VehiclesIdRoute,
+}
+
+const VehiclesRouteWithChildren = VehiclesRoute._addFileChildren(
+  VehiclesRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CashbookRoute: CashbookRoute,
-  CustomersRoute: CustomersRoute,
+  ControlTowerRoute: ControlTowerRoute,
+  CustomersRoute: CustomersRouteWithChildren,
   DealsRoute: DealsRoute,
   DispatchRoute: DispatchRoute,
-  DriversRoute: DriversRoute,
+  DriversRoute: DriversRouteWithChildren,
+  ExecutiveRoute: ExecutiveRoute,
   ExpensesRoute: ExpensesRoute,
   LedgerRoute: LedgerRoute,
   OrdersRoute: OrdersRoute,
   ProductsRoute: ProductsRoute,
   ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
-  SuppliersRoute: SuppliersRoute,
+  SuppliersRoute: SuppliersRouteWithChildren,
   TripsRoute: TripsRoute,
-  VehiclesRoute: VehiclesRoute,
+  VehiclesRoute: VehiclesRouteWithChildren,
   WeighbridgeRoute: WeighbridgeRoute,
 }
 export const routeTree = rootRouteImport
