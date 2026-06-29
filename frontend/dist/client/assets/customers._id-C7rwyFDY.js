@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DsKLSDJq.js";var t=e(),n=()=>(0,t.jsx)(`div`,{className:`p-10 text-sm text-muted-foreground`,children:`Customer not found.`});export{n as notFoundComponent};
