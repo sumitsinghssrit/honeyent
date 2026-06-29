@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Filter, Download, Pencil, Ban, FileDown, Sparkles } from "lucide-react";
+import { Filter, Download, Pencil, Ban, FileDown, Sparkles, Scale } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { inr, statusTone, type OrderStatus } from "@/lib/mock-data";
-import { useErp, active, type COrder, loadBackendData } from "@/lib/store";
+import { useErp, active, type COrder, loadBackendData, getLocalDateString } from "@/lib/store";
 import { EntityDialog, CancelDialog, type FieldDef } from "@/components/entity-dialog";
 import { generateDocPdf, generatePdf } from "@/lib/pdf";
+import { exportExcel } from "@/lib/export";
 import { DateRangeFilter, EMPTY_RANGE, inRange, type DateRange } from "@/components/date-range-filter";
 import { createOrder, updateOrder, deleteOrder } from "@/lib/api/clients";
+import { WeightConfirmationDialog } from "@/components/weight-confirmation-dialog";
 
 export const Route = createFileRoute("/orders")({
   head: () => ({ meta: [{ title: "Orders — Honey Enterprises ERP" }] }),
@@ -25,6 +27,7 @@ const STATUSES: OrderStatus[] = ["Pending", "Approved", "Loaded", "In Transit", 
 
 function OrdersPage() {
   const orders = useErp((s) => s.orders);
+  const deals = useErp((s) => s.deals);
   const customers = useErp((s) => s.customers);
   const suppliers = useErp((s) => s.suppliers);
   const products = useErp((s) => s.products);
@@ -37,40 +40,43 @@ function OrdersPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<COrder | null>(null);
   const [cancelTarget, setCancelTarget] = useState<COrder | null>(null);
+  const [confirmingDeal, setConfirmingDeal] = useState<CDeal | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fields: FieldDef[] = [
-    { name: "date", label: "Date", type: "date", required: true, half: true },
+    { name: "no", label: "Order Number (auto)", required: true, half: true },
+    { name: "date", label: "Order Date", type: "date", required: true, half: true },
     {
-      name: "customer", label: "Customer", type: "select", required: true,
+      name: "customer", label: "Customer", type: "select", required: true, half: true,
       options: active(customers).map((c) => ({ label: c.name, value: c.name }))
     },
     {
-      name: "supplier", label: "Supplier", type: "select", half: true,
+      name: "supplier", label: "Supplier (optional)", type: "select", half: true,
       options: active(suppliers).map((s) => ({ label: s.name, value: s.name }))
     },
     {
       name: "product", label: "Product", type: "select", required: true, half: true,
       options: active(products).map((p) => ({ label: p.name, value: p.name }))
     },
-    { name: "qty", label: "Qty (MT)", type: "number", required: true, half: true },
-    { name: "rate", label: "Rate / MT", type: "number", required: true, half: true },
+    { name: "qty", label: "Quantity (MT)", type: "number", required: true, half: true },
+    { name: "rate", label: "Customer Rate", type: "number", required: true, half: true },
+    { name: "freight", label: "Freight Charge", type: "number", half: true },
     {
       name: "vehicle", label: "Vehicle", type: "select", required: true, half: true,
       options: active(vehicles).map((v) => ({ label: v.number, value: v.number }))
     },
     {
-      name: "driver", label: "Driver", type: "select", half: true,
+      name: "driver", label: "Driver", type: "select", required: true, half: true,
       options: active(drivers).map((d) => ({ label: d.name, value: d.name }))
     },
-    { name: "freight", label: "Freight Amount", type: "number", half: true },
-    { name: "paymentTerms", label: "Payment Terms", type: "text", half: true },
-    { name: "expectedDelivery", label: "Expected Delivery", type: "date", half: true },
-    { name: "remarks", label: "Remarks", type: "textarea", half: true },
+    { name: "source", label: "Source Yard", half: true },
+    { name: "destination", label: "Destination", half: true },
+    { name: "paymentTerms", label: "Payment Terms", half: true },
     {
       name: "status", label: "Status", type: "select", required: true, half: true,
       options: STATUSES.map((s) => ({ label: s, value: s }))
     },
+    { name: "remarks", label: "Remarks", type: "textarea" },
   ];
 
   const visible = orders.filter((o) => {
@@ -85,27 +91,29 @@ function OrdersPage() {
     setLoading(true);
     try {
       const data = {
-        date: String(v.date),
+        orderNo: String(v.no),
+        orderDate: String(v.date),
         customer: String(v.customer),
-        supplier: String(v.supplier || ""),
+        supplier: v.supplier ? String(v.supplier) : undefined,
         product: String(v.product),
         qty: Number(v.qty),
         rate: Number(v.rate),
-        vehicle: String(v.vehicle),
-        driver: String(v.driver || ""),
         freight: Number(v.freight || 0),
-        paymentTerms: String(v.paymentTerms || ""),
-        expectedDelivery: String(v.expectedDelivery || ""),
-        remarks: String(v.remarks || ""),
-        status: (v.status as OrderStatus) || "Pending",
+        vehicle: String(v.vehicle),
+        driver: String(v.driver),
+        source: v.source ? String(v.source) : undefined,
+        destination: v.destination ? String(v.destination) : undefined,
+        paymentTerms: v.paymentTerms ? String(v.paymentTerms) : "Net 15 days",
+        remarks: v.remarks ? String(v.remarks) : undefined,
+        status: (v.status as COrder["status"]) || "Pending",
       };
 
       if (editing) {
         await updateOrder(String(editing.id), data);
-        toast.success(`Order ${editing.no} updated`);
+        toast.success(`✅ Order updated successfully.`);
       } else {
-        const order = await createOrder(data);
-        toast.success(`Order ${order.no} created`);
+        await createOrder(data);
+        toast.success(`✅ Order saved successfully.`);
       }
 
       await loadBackendData();
@@ -131,6 +139,20 @@ function OrdersPage() {
         { label: "Total value", value: inr(active(visible).reduce((a, o) => a + o.qty * o.rate, 0)) },
       ],
     });
+  }
+
+  function exportExcelData() {
+    exportExcel(
+      "Orders Register",
+      ["Order", "Date", "Customer", "Product", "Qty", "Rate", "Value", "Vehicle", "Status"],
+      active(visible).map((o) => [
+        o.no, o.date, o.customer, o.product, o.qty, o.rate, o.qty * o.rate, o.vehicle, o.status,
+      ]),
+      [
+        { label: "Total qty (MT)", value: String(active(visible).reduce((a, o) => a + o.qty, 0)) },
+        { label: "Total value", value: inr(active(visible).reduce((a, o) => a + o.qty * o.rate, 0)) },
+      ]
+    );
   }
 
   function downloadOrder(o: COrder) {
@@ -165,6 +187,7 @@ function OrdersPage() {
         description="Customer orders from booking to delivery and billing."
         actions={
           <>
+            <Button variant="outline" size="sm" onClick={exportExcelData}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
             <Button variant="outline" size="sm" onClick={exportPdf}><Download className="mr-1 h-4 w-4" />Export PDF</Button>
           </>
         }
@@ -216,14 +239,28 @@ function OrdersPage() {
                       : <Badge variant="outline" className={statusTone[o.status]}>{o.status}</Badge>}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    <Button variant="ghost" size="sm" onClick={() => downloadOrder(o)}><FileDown className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => downloadOrder(o)} title="Download PDF"><FileDown className="h-3.5 w-3.5" /></Button>
                     {(() => {
                       const FINAL = ["Delivered", "Billed", "Closed"];
                       const isFinal = FINAL.includes(o.status);
+                      const deal = deals.find((d) => String(d.orderId) === String(o.id));
+                      const showConfirmWeight = deal && (deal.customerWeight === null || deal.customerWeight === undefined) && !o.cancelled && o.status !== "Closed";
+
                       return (
                         <>
-                          <Button variant="ghost" size="sm" disabled={o.cancelled || isFinal} onClick={() => { setEditing(o); setOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="sm" disabled={o.cancelled} onClick={() => setCancelTarget(o)}><Ban className="h-3.5 w-3.5 text-destructive" /></Button>
+                          {showConfirmWeight && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-primary hover:text-primary hover:bg-primary/10"
+                              onClick={() => setConfirmingDeal(deal)}
+                              title="Confirm Customer Weight"
+                            >
+                              <Scale className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" disabled={o.cancelled || isFinal} onClick={() => { setEditing(o); setOpen(true); }} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" disabled={o.cancelled || isFinal} onClick={() => setCancelTarget(o)} title="Cancel Order"><Ban className="h-3.5 w-3.5" /></Button>
                         </>
                       );
                     })()}
@@ -241,7 +278,7 @@ function OrdersPage() {
         title="Order"
         fields={fields}
         mode="edit"
-        initial={editing ?? { date: new Date().toISOString().slice(0, 10), status: "Pending" }}
+        initial={editing ?? { date: getLocalDateString(), status: "Pending" }}
         onSubmit={handleSubmit}
         disabled={loading}
       />
@@ -265,6 +302,13 @@ function OrdersPage() {
             }
           }
         }}
+      />
+
+      <WeightConfirmationDialog
+        open={!!confirmingDeal}
+        onOpenChange={(v) => !v && setConfirmingDeal(null)}
+        deal={confirmingDeal}
+        onSuccess={loadBackendData}
       />
 
     </div>

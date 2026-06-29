@@ -26,16 +26,12 @@ function ControlTower() {
   const t = controlTower({ orders, vehicles, drivers, trips, expenses });
 
   const pipeline = [
-    { key: "Pending", count: t.counts.pending, tone: "bg-muted text-muted-foreground" },
-    { key: "Loading", count: t.counts.loading, tone: "bg-warning/15 text-warning" },
-    { key: "In Transit", count: t.counts.transit, tone: "bg-primary/15 text-primary" },
-    { key: "Delivered", count: t.counts.delivered, tone: "bg-success/15 text-success" },
-    { key: "Billed", count: t.counts.billed, tone: "bg-accent/15 text-accent-foreground" },
+    { key: "Pending", count: t.counts.pending, tone: "bg-muted text-muted-foreground border-muted-foreground/20" },
+    { key: "Loading", count: t.counts.loading, tone: "bg-warning/10 text-warning border-warning/20" },
+    { key: "In Transit", count: t.counts.transit, tone: "bg-primary/10 text-primary border-primary/20" },
+    { key: "Delivered", count: t.counts.delivered, tone: "bg-success/10 text-success border-success/20" },
+    { key: "Billed", count: t.counts.billed, tone: "bg-purple/10 text-purple border-purple/20" },
   ];
-
-  function displayOrderStatus(status: COrder["status"]) {
-    return status === "Pending" ? "Pending" : "Completed";
-  }
 
   async function changeOrderStatus(order: COrder, nextStatus: "Pending" | "Completed") {
     const FINAL = ["Delivered", "Billed", "Closed"];
@@ -52,7 +48,10 @@ function ControlTower() {
     }
   }
 
-  const [alertsOpen, setAlertsOpen] = useState(false);
+  const totalVeh = t.vehBusy + t.vehAvail;
+  const vehBusyPct = totalVeh > 0 ? (t.vehBusy / totalVeh) * 100 : 0;
+  const totalDrv = t.drvBusy + t.drvAvail;
+  const drvBusyPct = totalDrv > 0 ? (t.drvBusy / totalDrv) * 100 : 0;
 
   return (
     <>
@@ -60,101 +59,172 @@ function ControlTower() {
         title="Operations Control Tower"
         description="Live view of every order, vehicle and driver across the yard."
         actions={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setAlertsOpen(true)}><BellRing className="mr-1 h-4 w-4 text-warning" /></Button>
-            <Button variant="outline" size="sm" asChild><Link to="/operations"><ShoppingCart className="mr-1 h-4 w-4" />Open operations</Link></Button>
-          </>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/operations">
+              <ShoppingCart className="mr-1.5 h-4 w-4" />Open Operations
+            </Link>
+          </Button>
         }
       />
 
       <div className="grid gap-4 px-6 pt-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Today's revenue" value={inr(t.todayRevenue)} icon={IndianRupee} tone="success" />
-        <StatCard label="Today's expenses" value={inr(t.todayExpense)} icon={ArrowDown} tone="warning" />
-        <StatCard label="Today's profit" value={inr(t.todayProfit)} icon={TrendingUp} tone={t.todayProfit >= 0 ? "primary" : "destructive"} />
-        <StatCard label="Live activity" value={`${t.counts.transit + t.counts.loading}`} hint={`${t.counts.transit} moving · ${t.counts.loading} loading`} icon={RadioTower} tone="info" />
+        <StatCard label="Today's Revenue" value={inr(t.todayRevenue)} icon={IndianRupee} tone="success" />
+        <StatCard label="Today's Expenses" value={inr(t.todayExpense)} icon={ArrowDown} tone="warning" />
+        <StatCard label="Today's Profit" value={inr(t.todayProfit)} icon={TrendingUp} tone={t.todayProfit >= 0 ? "primary" : "destructive"} />
+        <StatCard label="Live Activity" value={`${t.counts.transit + t.counts.loading}`} hint={`${t.counts.transit} moving · ${t.counts.loading} loading`} icon={RadioTower} tone="info" />
       </div>
 
-      <div className="grid gap-4 px-6 py-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm lg:col-span-2">
-          <div className="flex items-center gap-2"><Activity className="h-4 w-4 text-primary" /><h2 className="font-display text-sm font-semibold">Order pipeline</h2></div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-5">
-            {pipeline.map((p) => (
-              <div key={p.key} className="rounded-lg border border-border bg-background p-3 text-center">
-                <p className={`mx-auto inline-flex rounded-md px-2 py-0.5 text-[10px] font-medium ${p.tone}`}>{p.key}</p>
-                <p className="mt-2 font-display text-2xl font-semibold tabular-nums">{p.count}</p>
-              </div>
-            ))}
+      <div className="grid gap-6 px-6 py-6 lg:grid-cols-3">
+        {/* Left Side: Order Pipeline Stepper and Active Dispatch Table */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Pipeline Cards */}
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <div className="flex items-center gap-2 border-b border-border pb-3">
+              <Activity className="h-4 w-4 text-primary" />
+              <h2 className="font-display text-sm font-semibold">Order Tracking Pipeline</h2>
+            </div>
+            <div className="mt-4 grid gap-3 grid-cols-2 sm:grid-cols-5">
+              {pipeline.map((p) => (
+                <div key={p.key} className={`rounded-xl border p-4 text-center bg-background/50 transition-all hover:shadow-md ${p.tone}`}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider">{p.key}</p>
+                  <p className="mt-2 font-display text-3xl font-extrabold tabular-nums">{p.count}</p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="mt-5 grid gap-2">
-            {orders.slice(0, 6).map((o) => (
-              <div key={o.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-xs">
-                <span className="font-mono">{o.no}</span>
-                <span className="truncate">{o.customer}</span>
-                <span className="font-mono text-muted-foreground">{o.vehicle}</span>
-                <Badge variant="outline" className={statusTone[o.status]}>{o.status}</Badge>
+
+          {/* Active Dispatches */}
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Truck className="h-4 w-4 text-primary" />
+                <h2 className="font-display text-sm font-semibold">Active Yard Dispatches</h2>
               </div>
-            ))}
+              <span className="text-[11px] bg-muted px-2 py-0.5 rounded font-medium text-muted-foreground">{orders.length} active orders</span>
+            </div>
+            <div className="overflow-x-auto pt-3">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground font-semibold">
+                    <th className="py-2.5">Order No</th>
+                    <th className="py-2.5">Customer</th>
+                    <th className="py-2.5">Vehicle</th>
+                    <th className="py-2.5">Status</th>
+                    <th className="py-2.5 text-right">Quick Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {orders.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-muted-foreground">No active dispatches.</td>
+                    </tr>
+                  ) : (
+                    orders.slice(0, 8).map((o) => (
+                      <tr key={o.id} className="hover:bg-muted/5 transition-colors">
+                        <td className="py-3 font-mono text-muted-foreground">{o.no}</td>
+                        <td className="py-3 font-medium">{o.customer}</td>
+                        <td className="py-3 font-mono">{o.vehicle || "—"}</td>
+                        <td className="py-3">
+                          <Badge variant="outline" className={statusTone[o.status] || "bg-muted text-muted-foreground"}>
+                            {o.status}
+                          </Badge>
+                        </td>
+                        <td className="py-3 text-right">
+                          {o.status === "Pending" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[10px] px-2"
+                              onClick={() => changeOrderStatus(o, "Completed")}
+                            >
+                              Mark Delivered
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px] text-muted-foreground px-2"
+                              onClick={() => changeOrderStatus(o, "Pending")}
+                            >
+                              Revert
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center gap-2"><Activity className="h-4 w-4 text-primary" /><h2 className="font-display text-sm font-semibold">Recent orders</h2></div>
-          <div className="mt-4 space-y-3">
-            {orders.slice(0, 6).map((o) => (
-              <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-xs">
-                <div className="min-w-0">
-                  <p className="font-mono">{o.no}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">{o.customer} • {o.vehicle}</p>
+        {/* Right Side: Status Cards and Incident Center */}
+        <div className="space-y-6">
+          {/* Fleet Status */}
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 border-b border-border pb-3">
+              <Truck className="h-4 w-4 text-primary" />
+              <h2 className="font-display text-sm font-semibold">Fleet Utilization</h2>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="font-medium">Vehicles on Road ({t.vehBusy}/{totalVeh})</span>
+                  <span className="text-muted-foreground font-mono">{vehBusyPct.toFixed(0)}%</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className={o.status === "Pending" ? "bg-muted text-muted-foreground" : "bg-success/15 text-success"}>{displayOrderStatus(o.status)}</Badge>
-                  <Button variant="ghost" size="sm" onClick={() => changeOrderStatus(o, o.status === "Pending" ? "Completed" : "Pending")}>{o.status === "Pending" ? "Complete" : "Pending"}</Button>
+                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-500" style={{ width: `${vehBusyPct}%` }}></div>
                 </div>
               </div>
-            ))}
+              <div className="grid grid-cols-2 gap-2 text-center text-xs pt-1">
+                <div className="bg-success/10 text-success p-2 rounded-lg border border-success/20 font-semibold">
+                  {t.vehAvail} Available
+                </div>
+                <div className="bg-primary/10 text-primary p-2 rounded-lg border border-primary/20 font-semibold">
+                  {t.vehBusy} Active
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-2"><Truck className="h-4 w-4 text-primary" /><h2 className="font-display text-sm font-semibold">Fleet</h2></div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-              <Cell label="Available" value={t.vehAvail} tone="bg-success/15 text-success" />
-              <Cell label="On trip" value={t.vehBusy} tone="bg-primary/15 text-primary" />
+          {/* Drivers Status */}
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 border-b border-border pb-3">
+              <IdCard className="h-4 w-4 text-primary" />
+              <h2 className="font-display text-sm font-semibold">Driver Allocation</h2>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="font-medium">Drivers on Road ({t.drvBusy}/{totalDrv})</span>
+                  <span className="text-muted-foreground font-mono">{drvBusyPct.toFixed(0)}%</span>
+                </div>
+                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-500" style={{ width: `${drvBusyPct}%` }}></div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center text-xs pt-1">
+                <div className="bg-success/10 text-success p-2 rounded-lg border border-success/20 font-semibold">
+                  {t.drvAvail} Available
+                </div>
+                <div className="bg-primary/10 text-primary p-2 rounded-lg border border-primary/20 font-semibold">
+                  {t.drvBusy} Active
+                </div>
+              </div>
             </div>
           </div>
-          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-2"><IdCard className="h-4 w-4 text-primary" /><h2 className="font-display text-sm font-semibold">Drivers</h2></div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-              <Cell label="Available" value={t.drvAvail} tone="bg-success/15 text-success" />
-              <Cell label="On trip" value={t.drvBusy} tone="bg-primary/15 text-primary" />
+
+          {/* Incident Monitoring Center */}
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <div className="flex items-center gap-2 border-b border-border pb-3 mb-4">
+              <BellRing className="h-4 w-4 text-warning" />
+              <h2 className="font-display text-sm font-semibold">Incident Monitoring</h2>
             </div>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-2"><ArrowUp className="h-4 w-4 text-success" /><h2 className="font-display text-sm font-semibold">Net flow today</h2></div>
-            <p className="mt-2 font-display text-2xl font-semibold tabular-nums">{inr(t.todayProfit)}</p>
-            <p className="text-xs text-muted-foreground">{inr(t.todayRevenue)} in · {inr(t.todayExpense)} out</p>
+            <AlertCenter limit={6} />
           </div>
         </div>
       </div>
-
-      <Dialog open={alertsOpen} onOpenChange={(v) => setAlertsOpen(v)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Alerts</DialogTitle>
-          </DialogHeader>
-          <AlertCenter limit={50} />
-        </DialogContent>
-      </Dialog>
     </>
-  );
-}
-
-function Cell({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return (
-    <div className="rounded-lg bg-muted/30 p-3">
-      <p className={`mx-auto inline-flex rounded-md px-2 py-0.5 text-[10px] font-medium ${tone}`}>{label}</p>
-      <p className="mt-1 font-display text-xl font-semibold tabular-nums">{value}</p>
-    </div>
   );
 }

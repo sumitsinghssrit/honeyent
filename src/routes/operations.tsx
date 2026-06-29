@@ -13,6 +13,7 @@ import { OneShotOrderDialog } from "@/components/one-shot-order";
 import { useErp, active, type COrder, type CTrip, type CWeighSlip, type CInvoice } from "@/lib/store";
 import { updateOrderStatus } from "@/lib/api/clients";
 import { generateDocPdf, generatePdf } from "@/lib/pdf";
+import { exportExcel } from "@/lib/export";
 import { inr } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/operations")({
@@ -111,6 +112,25 @@ function OperationsPage() {
         });
     }
 
+    function exportExcelData() {
+        exportExcel(
+            "Operations Register",
+            ["Order", "Date", "Customer", "Product", "Qty", "Vehicle", "Status"],
+            visible.map((row) => [
+                row.order.no,
+                row.order.date,
+                row.order.customer,
+                row.order.product,
+                row.order.qty,
+                row.order.vehicle,
+                orderStatusLabel(row.order.status),
+            ]),
+            [
+                { label: "Total qty", value: `${visible.reduce((acc, row) => acc + row.order.qty, 0)} MT` },
+            ]
+        );
+    }
+
     async function changeOrderStatus(order: COrder, nextStatus: "Pending" | "Completed") {
         // Final statuses that make an order a fixed document
         const FINAL = ["Delivered", "Billed", "Closed"];
@@ -162,7 +182,8 @@ function OperationsPage() {
                 description="One central register for every transaction: orders, dispatch, weighbridge, trips and invoices."
                 actions={
                     <>
-                        <Button variant="outline" size="sm" onClick={exportRegister}><FileDown className="mr-1 h-4 w-4" />Export</Button>
+                        <Button variant="outline" size="sm" onClick={exportExcelData}><FileDown className="mr-1 h-4 w-4" />Export Excel</Button>
+                        <Button variant="outline" size="sm" onClick={exportRegister}><FileDown className="mr-1 h-4 w-4" />Export PDF</Button>
                         <Button size="sm" onClick={() => setOneShot(true)}><Sparkles className="mr-1 h-4 w-4" />One-Shot Order</Button>
                     </>
                 }
@@ -212,7 +233,6 @@ function OperationsPage() {
                                     <TableCell className="text-right whitespace-nowrap">
                                         <Button variant="ghost" size="sm" onClick={() => setViewing(row)}><Eye className="h-3.5 w-3.5" /></Button>
                                         <Button variant="ghost" size="sm" onClick={() => changeOrderStatus(row.order, row.order.status === "Pending" ? "Completed" : "Pending")}>{row.order.status === "Pending" ? "Complete" : "Pending"}</Button>
-                                        <Button variant="ghost" size="sm" onClick={() => loseOrder(row.order)}><Ban className="h-3.5 w-3.5 text-destructive" /></Button>
                                     </TableCell>
                                 </TableRow>
                             ))}

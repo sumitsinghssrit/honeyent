@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { statusTone, inr } from "@/lib/mock-data";
 import { useErp, active, type COrder } from "@/lib/store";
 import { generateDocPdf, generatePdf } from "@/lib/pdf";
+import { exportExcel } from "@/lib/export";
 
 export const Route = createFileRoute("/dispatch")({
   head: () => ({ meta: [{ title: "Dispatch — Honey Enterprises ERP" }] }),
@@ -55,9 +56,17 @@ function DispatchPage() {
     });
   }
 
+  function exportExcelData() {
+    exportExcel(
+      "Dispatch Pipeline",
+      ["Challan", "Vehicle", "Driver", "Customer", "Product", "Qty", "Status"],
+      list.map((o) => [`DC-${o.no.slice(-3)}`, o.vehicle, o.driver, o.customer, o.product, o.qty, o.status])
+    );
+  }
+
   function markPod(o: COrder) {
     update("orders", String(o.id), { status: "Delivered" });
-    toast.success(`POD captured for ${o.no}`);
+    toast.success(`POD captured successfully for ${o.no}`);
   }
 
   return (
@@ -66,6 +75,7 @@ function DispatchPage() {
         description="Generate challans, track in-transit loads and capture POD on delivery."
         actions={
           <>
+            <Button variant="outline" size="sm" onClick={exportExcelData}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
             <Button variant="outline" size="sm" onClick={exportPdf}><Download className="mr-1 h-4 w-4" />Export PDF</Button>
             <Button size="sm" onClick={() => setFilter(filter === "pipeline" ? "all" : "pipeline")}>
               <Truck className="mr-1 h-4 w-4" />{filter === "pipeline" ? "Show all" : "Pipeline only"}

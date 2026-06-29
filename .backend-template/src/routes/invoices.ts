@@ -13,13 +13,18 @@ const createSalesInvoiceSchema = z.object({
     invoiceDate: z.string(),
     customerId: idOrName.optional(),
     customer: z.string().min(1).optional(),
-    orderId: z.coerce.number().optional(),
+    orderId: z.string().optional(),
     subTotal: z.coerce.number().positive(),
     cgstAmount: z.coerce.number().nonnegative().optional(),
     sgstAmount: z.coerce.number().nonnegative().optional(),
     igstAmount: z.coerce.number().nonnegative().optional(),
     totalAmount: z.coerce.number().positive(),
-    dealId: z.coerce.number().optional(),
+    dealId: z.string().optional(),
+    status: z.string().optional(),
+    paymentStatus: z.string().optional(),
+    cancelled: z.boolean().optional(),
+    cancelRemark: z.string().optional(),
+    cancelledAt: z.string().optional(),
 });
 
 // Sales Invoices
@@ -54,11 +59,16 @@ const createPurchaseInvoiceSchema = z.object({
     invoiceDate: z.string(),
     supplierId: idOrName.optional(),
     supplier: z.string().min(1).optional(),
-    orderId: z.coerce.number().optional(),
+    orderId: z.string().optional(),
     subTotal: z.coerce.number().positive(),
     gstAmount: z.coerce.number().nonnegative().optional(),
     totalAmount: z.coerce.number().positive(),
-    dealId: z.coerce.number().optional(),
+    dealId: z.string().optional(),
+    status: z.string().optional(),
+    paymentStatus: z.string().optional(),
+    cancelled: z.boolean().optional(),
+    cancelRemark: z.string().optional(),
+    cancelledAt: z.string().optional(),
 });
 
 router.post('/purchase', validateBody(createPurchaseInvoiceSchema), asyncHandler(async (req, res) => {

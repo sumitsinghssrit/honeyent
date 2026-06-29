@@ -1,6 +1,13 @@
-import { query } from '../config/database.ts';
+import { query, getClient } from '../config/database.ts';
 import { ApiError } from '../middleware/errorHandler.ts';
 import { camelizeRow, camelizeRows } from '../utils/transform.ts';
+
+function getLocalDateString(): string {
+    const d = new Date();
+    const offset = d.getTimezoneOffset();
+    const localDate = new Date(d.getTime() - offset * 60 * 1000);
+    return localDate.toISOString().slice(0, 10);
+}
 
 // Helper function to generate next customer code
 async function getNextCustomerCode(): Promise<string> {
@@ -298,61 +305,69 @@ export const supplierQueries = {
     },
 };
 
-async function resolveCustomerId(value: string | number | undefined): Promise<number | null> {
+async function resolveCustomerId(value: string | number | undefined): Promise<string | null> {
     if (!value) return null;
-    if (typeof value === 'number') return value;
-    const s = String(value).trim();
-    if (/^\d+$/.test(s)) return Number(s);
-    const result = await query('SELECT id FROM customers WHERE code = $1 OR name = $1 LIMIT 1', [value]);
-    return result.rows.length ? result.rows[0].id : null;
-}
-
-async function resolveSupplierId(value: string | number | undefined): Promise<number | null> {
-    if (!value) return null;
-    if (typeof value === 'number') return value;
-    const s = String(value).trim();
-    if (/^\d+$/.test(s)) return Number(s);
-    const result = await query('SELECT id FROM suppliers WHERE code = $1 OR name = $1 LIMIT 1', [value]);
-    return result.rows.length ? result.rows[0].id : null;
-}
-
-async function resolveProductId(value: string | number | undefined): Promise<number | null> {
-    if (!value) return null;
-    if (typeof value === 'number') return value;
-    const s = String(value).trim();
-    if (/^\d+$/.test(s)) return Number(s);
-    const result = await query('SELECT id FROM products WHERE code = $1 OR name = $1 LIMIT 1', [value]);
-    return result.rows.length ? result.rows[0].id : null;
-}
-
-async function resolveHsnId(value: string | number | undefined): Promise<number | null> {
-    if (!value) return null;
-    if (typeof value === 'number') return value;
     const search = String(value).trim();
     if (!search) return null;
-
     const result = await query(
-        'SELECT id FROM hsn_catalog WHERE hsn_code = $1 OR id::text = $1 LIMIT 1',
-        [search],
+        'SELECT id FROM customers WHERE code = $1 OR name = $1 OR id::text = $1 LIMIT 1',
+        [search]
     );
     return result.rows.length ? result.rows[0].id : null;
 }
 
-async function resolveVehicleId(value: string | number | undefined): Promise<number | null> {
+async function resolveSupplierId(value: string | number | undefined): Promise<string | null> {
     if (!value) return null;
-    if (typeof value === 'number') return value;
-    const s = String(value).trim();
-    if (/^\d+$/.test(s)) return Number(s);
-    const result = await query('SELECT id FROM vehicles WHERE number = $1 LIMIT 1', [value]);
+    const search = String(value).trim();
+    if (!search) return null;
+    const result = await query(
+        'SELECT id FROM suppliers WHERE code = $1 OR name = $1 OR id::text = $1 LIMIT 1',
+        [search]
+    );
     return result.rows.length ? result.rows[0].id : null;
 }
 
-async function resolveDriverId(value: string | number | undefined): Promise<number | null> {
+async function resolveProductId(value: string | number | undefined): Promise<string | null> {
     if (!value) return null;
-    if (typeof value === 'number') return value;
-    const s = String(value).trim();
-    if (/^\d+$/.test(s)) return Number(s);
-    const result = await query('SELECT id FROM drivers WHERE name = $1 OR license_number = $1 LIMIT 1', [value]);
+    const search = String(value).trim();
+    if (!search) return null;
+    const result = await query(
+        'SELECT id FROM products WHERE code = $1 OR name = $1 OR id::text = $1 LIMIT 1',
+        [search]
+    );
+    return result.rows.length ? result.rows[0].id : null;
+}
+
+async function resolveHsnId(value: string | number | undefined): Promise<string | null> {
+    if (!value) return null;
+    const search = String(value).trim();
+    if (!search) return null;
+    const result = await query(
+        'SELECT id FROM hsn_catalog WHERE hsn_code = $1 OR id::text = $1 LIMIT 1',
+        [search]
+    );
+    return result.rows.length ? result.rows[0].id : null;
+}
+
+async function resolveVehicleId(value: string | number | undefined): Promise<string | null> {
+    if (!value) return null;
+    const search = String(value).trim();
+    if (!search) return null;
+    const result = await query(
+        'SELECT id FROM vehicles WHERE number = $1 OR id::text = $1 LIMIT 1',
+        [search]
+    );
+    return result.rows.length ? result.rows[0].id : null;
+}
+
+async function resolveDriverId(value: string | number | undefined): Promise<string | null> {
+    if (!value) return null;
+    const search = String(value).trim();
+    if (!search) return null;
+    const result = await query(
+        'SELECT id FROM drivers WHERE name = $1 OR license_number = $1 OR id::text = $1 LIMIT 1',
+        [search]
+    );
     return result.rows.length ? result.rows[0].id : null;
 }
 
@@ -576,7 +591,7 @@ export const driverQueries = {
                 data.address || null,
                 data.licenseNumber || null,
                 data.licenseExpiry || null,
-                data.joiningDate || new Date().toISOString().split('T')[0],
+                data.joiningDate || getLocalDateString(),
                 'Active',
             ]
         );
@@ -825,6 +840,9 @@ export const invoiceQueries = {
                     i.payment_status AS payment_status,
                     i.status,
                     i.deal_id AS deal_id,
+                    i.cancelled,
+                    i.cancel_remark AS cancel_remark,
+                    i.cancelled_at AS cancelled_at,
                     c.name AS party
        FROM sales_invoices i
        LEFT JOIN customers c ON i.customer_id = c.id
@@ -847,6 +865,9 @@ export const invoiceQueries = {
                     i.payment_status AS payment_status,
                     i.status,
                     i.deal_id AS deal_id,
+                    i.cancelled,
+                    i.cancel_remark AS cancel_remark,
+                    i.cancelled_at AS cancelled_at,
                     s.name AS party
        FROM purchase_invoices i
        LEFT JOIN suppliers s ON i.supplier_id = s.id
@@ -932,8 +953,11 @@ export const invoiceQueries = {
         total_amount = $10,
         payment_status = $11,
         status = $12,
+        cancelled = $13,
+        cancel_remark = $14,
+        cancelled_at = $15,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+      WHERE id = $16
       RETURNING *`,
             [
                 data.invoiceNo || invoice.no,
@@ -948,6 +972,9 @@ export const invoiceQueries = {
                 data.totalAmount !== undefined ? data.totalAmount : invoice.amount,
                 data.paymentStatus || invoice.paymentStatus,
                 data.status || invoice.status,
+                data.cancelled !== undefined ? data.cancelled : invoice.cancelled,
+                data.cancelRemark !== undefined ? data.cancelRemark : invoice.cancelRemark,
+                data.cancelledAt !== undefined ? data.cancelledAt : invoice.cancelledAt,
                 id,
             ]
         );
@@ -971,8 +998,11 @@ export const invoiceQueries = {
         total_amount = $8,
         payment_status = $9,
         status = $10,
+        cancelled = $11,
+        cancel_remark = $12,
+        cancelled_at = $13,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $11
+      WHERE id = $14
       RETURNING *`,
             [
                 data.invoiceNo || invoice.no,
@@ -985,6 +1015,9 @@ export const invoiceQueries = {
                 data.totalAmount !== undefined ? data.totalAmount : invoice.amount,
                 data.paymentStatus || invoice.paymentStatus,
                 data.status || invoice.status,
+                data.cancelled !== undefined ? data.cancelled : invoice.cancelled,
+                data.cancelRemark !== undefined ? data.cancelRemark : invoice.cancelRemark,
+                data.cancelledAt !== undefined ? data.cancelledAt : invoice.cancelledAt,
                 id,
             ]
         );
@@ -1011,22 +1044,98 @@ export const invoiceQueries = {
 export const dealQueries = {
     async getAll() {
         const result = await query(
-            `SELECT d.*, c.name AS customer, s.name AS supplier
-       FROM deals d
-       LEFT JOIN customers c ON d.customer_id = c.id
-       LEFT JOIN suppliers s ON d.supplier_id = s.id
-       ORDER BY d.deal_date DESC`
+            `SELECT d.*, 
+                    c.name AS customer, 
+                    s.name AS supplier,
+                    o.order_no,
+                    o.qty AS order_qty,
+                    o.rate AS rate,
+                    o.status AS order_status,
+                    (w.net_weight / 1000.0) AS our_weight,
+                    (w.customer_weight / 1000.0) AS customer_weight,
+                    (w.loss_weight / 1000.0) AS loss_weight,
+                    v.number AS vehicle,
+                    dr.name AS driver,
+                    p.name AS product,
+                    dc.challan_no,
+                    dc.qty AS challan_qty,
+                    t.trip_no,
+                    t.weight AS trip_weight,
+                    t.revenue AS trip_revenue,
+                    t.trip_expenses AS trip_expense,
+                    si.invoice_no AS sales_invoice_no,
+                    si.sub_total AS sales_sub_total,
+                    (COALESCE(si.cgst_amount, 0) + COALESCE(si.sgst_amount, 0) + COALESCE(si.igst_amount, 0)) AS sales_gst_amount,
+                    si.total_amount AS sales_invoice_amount,
+                    si.status AS sales_invoice_status,
+                    pi.invoice_no AS purchase_invoice_no,
+                    pi.sub_total AS purchase_sub_total,
+                    pi.gst_amount AS purchase_gst_amount,
+                    pi.total_amount AS purchase_invoice_amount,
+                    pi.status AS purchase_invoice_status,
+                    (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE deal_id = d.id AND cancelled = false) AS received_amount
+             FROM deals d
+             LEFT JOIN customers c ON d.customer_id = c.id
+             LEFT JOIN suppliers s ON d.supplier_id = s.id
+             LEFT JOIN orders o ON d.order_id = o.id
+             LEFT JOIN weigh_slips w ON d.weigh_slip_id = w.id
+             LEFT JOIN vehicles v ON o.vehicle_id = v.id
+             LEFT JOIN drivers dr ON o.driver_id = dr.id
+             LEFT JOIN products p ON o.product_id = p.id
+             LEFT JOIN delivery_challans dc ON d.challan_id = dc.id
+             LEFT JOIN trips t ON d.trip_id = t.id
+             LEFT JOIN sales_invoices si ON d.sales_invoice_id = si.id
+             LEFT JOIN purchase_invoices pi ON d.purchase_invoice_id = pi.id
+             ORDER BY d.deal_date DESC`
         );
         return camelizeRows(result.rows);
     },
 
     async getById(id: string) {
         const result = await query(
-            `SELECT d.*, c.name AS customer, s.name AS supplier
-       FROM deals d
-       LEFT JOIN customers c ON d.customer_id = c.id
-       LEFT JOIN suppliers s ON d.supplier_id = s.id
-       WHERE d.id = $1`,
+            `SELECT d.*, 
+                    c.name AS customer, 
+                    s.name AS supplier,
+                    o.order_no,
+                    o.qty AS order_qty,
+                    o.rate AS rate,
+                    o.status AS order_status,
+                    (w.net_weight / 1000.0) AS our_weight,
+                    (w.customer_weight / 1000.0) AS customer_weight,
+                    (w.loss_weight / 1000.0) AS loss_weight,
+                    v.number AS vehicle,
+                    dr.name AS driver,
+                    p.name AS product,
+                    dc.challan_no,
+                    dc.qty AS challan_qty,
+                    t.trip_no,
+                    t.weight AS trip_weight,
+                    t.revenue AS trip_revenue,
+                    t.trip_expenses AS trip_expense,
+                    si.invoice_no AS sales_invoice_no,
+                    si.sub_total AS sales_sub_total,
+                    (COALESCE(si.cgst_amount, 0) + COALESCE(si.sgst_amount, 0) + COALESCE(si.igst_amount, 0)) AS sales_gst_amount,
+                    si.total_amount AS sales_invoice_amount,
+                    si.status AS sales_invoice_status,
+                    pi.invoice_no AS purchase_invoice_no,
+                    pi.sub_total AS purchase_sub_total,
+                    pi.gst_amount AS purchase_gst_amount,
+                    pi.total_amount AS purchase_invoice_amount,
+                    pi.status AS purchase_invoice_status,
+                    (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE deal_id = d.id AND cancelled = false) AS received_amount
+             FROM deals d
+             LEFT JOIN customers c ON d.customer_id = c.id
+             LEFT JOIN suppliers s ON d.supplier_id = s.id
+             LEFT JOIN orders o ON d.order_id = o.id
+             LEFT JOIN weigh_slips w ON d.weigh_slip_id = w.id
+             LEFT JOIN vehicles v ON o.vehicle_id = v.id
+             LEFT JOIN drivers dr ON o.driver_id = dr.id
+             LEFT JOIN products p ON o.product_id = p.id
+             LEFT JOIN delivery_challans dc ON d.challan_id = dc.id
+             LEFT JOIN trips t ON d.trip_id = t.id
+             LEFT JOIN sales_invoices si ON d.sales_invoice_id = si.id
+             LEFT JOIN purchase_invoices pi ON d.purchase_invoice_id = pi.id
+             WHERE d.id = $1`,
             [id]
         );
         if (result.rows.length === 0) {
@@ -1118,6 +1227,176 @@ export const dealQueries = {
         await query('DELETE FROM deals WHERE id = $1', [id]);
         return { success: true };
     },
+
+    async confirmWeight(dealId: string, data: { customerWeight: number; reason: string; remarks?: string; approvedBy?: string; updatedBy: string }) {
+        const client = await getClient();
+        try {
+            await client.query('BEGIN');
+
+            // 1. Fetch the deal
+            const dealResult = await client.query('SELECT * FROM deals WHERE id = $1', [dealId]);
+            if (dealResult.rows.length === 0) {
+                throw new ApiError(404, 'Deal not found');
+            }
+            const deal = camelizeRow(dealResult.rows[0]);
+
+            // 2. Fetch associated order
+            const orderResult = await client.query('SELECT * FROM orders WHERE id = $1', [deal.orderId]);
+            if (orderResult.rows.length === 0) {
+                throw new ApiError(404, 'Order associated with deal not found');
+            }
+            const order = camelizeRow(orderResult.rows[0]);
+
+            // 3. Fetch associated weigh slip
+            const weighSlipResult = await client.query('SELECT * FROM weigh_slips WHERE id = $1', [deal.weighSlipId]);
+            if (weighSlipResult.rows.length === 0) {
+                throw new ApiError(404, 'Weigh slip associated with deal not found');
+            }
+            const weighSlip = camelizeRow(weighSlipResult.rows[0]);
+
+            // 4. Fetch associated sales invoice
+            let salesInvoice = null;
+            if (deal.salesInvoiceId) {
+                const siResult = await client.query('SELECT * FROM sales_invoices WHERE id = $1', [deal.salesInvoiceId]);
+                if (siResult.rows.length > 0) {
+                    salesInvoice = camelizeRow(siResult.rows[0]);
+                }
+            }
+
+            // Validation 1: No weight adjustment allowed after payment is completed
+            if (salesInvoice && (salesInvoice.paymentStatus === 'Paid' || salesInvoice.status === 'Paid')) {
+                throw new ApiError(400, 'Weight adjustment is not allowed after payment.');
+            }
+
+            // Validation 2: Customer Weight Cannot exceed Our Weight unless approved.
+            const ourWeight = weighSlip.netWeight ? Number(weighSlip.netWeight) / 1000 : Number(order.qty);
+            const customerWeight = Number(data.customerWeight);
+            if (customerWeight > ourWeight && !data.approvedBy) {
+                throw new ApiError(400, 'Customer weight cannot exceed our weight without approval.');
+            }
+
+            // Validation 3: Difference should require mandatory reason
+            const differenceQty = ourWeight - customerWeight;
+            if (differenceQty !== 0 && (!data.reason || !data.reason.trim())) {
+                throw new ApiError(400, 'Reason is mandatory for weight difference.');
+            }
+
+            // Calculations
+            const rate = Number(order.rate);
+            const oldQty = Number(order.qty);
+            const newQty = customerWeight;
+
+            // Recalculate commercial values
+            const oldAmount = oldQty * rate;
+            const newAmount = newQty * rate;
+
+            // Calculate GST
+            let gstRate = 5;
+            if (deal.challanId) {
+                const dcResult = await client.query('SELECT gst_rate FROM delivery_challans WHERE id = $1', [deal.challanId]);
+                if (dcResult.rows.length > 0) {
+                    gstRate = Number(dcResult.rows[0].gst_rate || 5);
+                }
+            }
+            const oldGst = Math.round(oldAmount * (gstRate / 100));
+            const newGst = Math.round(newAmount * (gstRate / 100));
+
+            const oldInvoiceAmount = oldAmount + oldGst + Number(order.freight || 0);
+            const newInvoiceAmount = newAmount + newGst + Number(order.freight || 0);
+
+            // Update Weigh Slip
+            const lossWeight = Math.max(ourWeight - customerWeight, 0);
+            await client.query(
+                `UPDATE weigh_slips 
+                 SET customer_weight = $1, loss_weight = $2, status = 'Confirmed', updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = $3`,
+                [customerWeight * 1000, lossWeight * 1000, weighSlip.id]
+            );
+
+            // Update Order
+            await client.query(
+                `UPDATE orders 
+                 SET qty = $1, status = 'Customer Weight Confirmed', updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = $2`,
+                [newQty, order.id]
+            );
+
+            // Update Delivery Challan
+            if (deal.challanId) {
+                await client.query(
+                    `UPDATE delivery_challans 
+                     SET qty = $1, amount = $2, status = 'Confirmed', updated_at = CURRENT_TIMESTAMP 
+                     WHERE id = $3`,
+                    [newQty, newAmount + Number(order.freight || 0), deal.challanId]
+                );
+            }
+
+            // Update Trip
+            if (deal.tripId) {
+                const newRevenue = newAmount + Number(order.freight || 0);
+                await client.query(
+                    `UPDATE trips 
+                     SET weight = $1, revenue = $2, net_profit = $2 - trip_expenses, status = 'Completed', updated_at = CURRENT_TIMESTAMP 
+                     WHERE id = $3`,
+                    [newQty, newRevenue, deal.tripId]
+                );
+            }
+
+            // Update Sales Invoice
+            if (deal.salesInvoiceId && salesInvoice) {
+                const newCgst = newGst / 2;
+                const newSgst = newGst / 2;
+                await client.query(
+                    `UPDATE sales_invoices 
+                     SET sub_total = $1, cgst_amount = $2, sgst_amount = $3, total_amount = $4, status = 'Adjusted', updated_at = CURRENT_TIMESTAMP 
+                     WHERE id = $5`,
+                    [newAmount, newCgst, newSgst, newInvoiceAmount, deal.salesInvoiceId]
+                );
+            }
+
+            // Update Purchase Invoice (if exists)
+            if (deal.purchaseInvoiceId) {
+                const newPurchaseSubTotal = Math.round(newAmount * 0.7);
+                const newPurchaseGst = Math.round(newPurchaseSubTotal * 0.05);
+                const newPurchaseTotal = newPurchaseSubTotal + newPurchaseGst;
+
+                await client.query(
+                    `UPDATE purchase_invoices 
+                     SET sub_total = $1, gst_amount = $2, total_amount = $3, updated_at = CURRENT_TIMESTAMP 
+                     WHERE id = $4`,
+                    [newPurchaseSubTotal, newPurchaseGst, newPurchaseTotal, deal.purchaseInvoiceId]
+                );
+            }
+
+            // Update Deal
+            await client.query(
+                `UPDATE deals 
+                 SET status = 'Customer Weight Confirmed', total_value = $1, updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = $2`,
+                [newInvoiceAmount, deal.id]
+            );
+
+            // Record in weight_adjustment_history
+            await client.query(
+                `INSERT INTO weight_adjustment_history (
+                    deal_id, order_id, old_qty, new_qty, difference_qty, reason, remarks, approved_by, updated_by,
+                    old_amount, new_amount, old_gst, new_gst, old_invoice_amount, new_invoice_amount
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+                [
+                    deal.id, order.id, oldQty, newQty, differenceQty, data.reason, data.remarks || null, data.approvedBy || null, data.updatedBy,
+                    oldAmount, newAmount, oldGst, newGst, oldInvoiceAmount, newInvoiceAmount
+                ]
+            );
+
+            await client.query('COMMIT');
+            return { success: true };
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+    }
 };
 
 export const weighSlipQueries = {
@@ -1125,14 +1404,14 @@ export const weighSlipQueries = {
         const result = await query(
             `SELECT w.id,
                     w.slip_no AS slip_no,
-                    w.slip_date AS slip_date,
+                    w.slip_date AS date,
                     w.vehicle_id AS vehicle_id,
                     w.product_id AS product_id,
-                    w.gross_weight AS gross_weight,
-                    w.tare_weight AS tare_weight,
-                    w.net_weight AS net_weight,
+                    w.gross_weight AS gross,
+                    w.tare_weight AS tare,
+                    w.net_weight AS net,
                     w.customer_weight AS customer_weight,
-                    w.loss_weight AS loss_weight,
+                    w.loss_weight AS loss,
                     w.deal_id AS deal_id,
                     w.status,
                     w.cancelled,
@@ -1152,14 +1431,14 @@ export const weighSlipQueries = {
         const result = await query(
             `SELECT w.id,
                     w.slip_no AS slip_no,
-                    w.slip_date AS slip_date,
+                    w.slip_date AS date,
                     w.vehicle_id AS vehicle_id,
                     w.product_id AS product_id,
-                    w.gross_weight AS gross_weight,
-                    w.tare_weight AS tare_weight,
-                    w.net_weight AS net_weight,
+                    w.gross_weight AS gross,
+                    w.tare_weight AS tare,
+                    w.net_weight AS net,
                     w.customer_weight AS customer_weight,
-                    w.loss_weight AS loss_weight,
+                    w.loss_weight AS loss,
                     w.deal_id AS deal_id,
                     w.status,
                     w.cancelled,
@@ -1184,6 +1463,11 @@ export const weighSlipQueries = {
         const vehicleId = await resolveVehicleId(data.vehicle || data.vehicleId);
         const productId = await resolveProductId(data.product || data.productId);
 
+        const gross = data.gross !== undefined ? data.gross : data.grossWeight;
+        const tare = data.tare !== undefined ? data.tare : data.tareWeight;
+        const net = data.net !== undefined ? data.net : (data.netWeight !== undefined ? data.netWeight : Math.max((gross || 0) - (tare || 0), 0));
+        const loss = data.loss !== undefined ? data.loss : (data.lossWeight !== undefined ? data.lossWeight : (data.customerWeight ? Math.max(net - data.customerWeight, 0) : 0));
+
         const result = await query(
             `INSERT INTO weigh_slips (
         slip_no, slip_date, vehicle_id, product_id,
@@ -1194,14 +1478,14 @@ export const weighSlipQueries = {
       RETURNING *`,
             [
                 slipNo,
-                data.slipDate,
+                data.date || data.slipDate || getLocalDateString(),
                 vehicleId,
                 productId,
-                data.grossWeight,
-                data.tareWeight,
-                data.netWeight,
+                gross || 0,
+                tare || 0,
+                net || 0,
                 data.customerWeight || null,
-                data.lossWeight || null,
+                loss || 0,
                 data.dealId || null,
                 data.status || 'Draft',
             ]
@@ -1213,6 +1497,11 @@ export const weighSlipQueries = {
         const slip = await this.getById(id);
         const vehicleId = await resolveVehicleId(data.vehicle || data.vehicleId || slip.vehicle);
         const productId = await resolveProductId(data.product || data.productId || slip.product);
+
+        const gross = data.gross !== undefined ? data.gross : (data.grossWeight !== undefined ? data.grossWeight : slip.gross);
+        const tare = data.tare !== undefined ? data.tare : (data.tareWeight !== undefined ? data.tareWeight : slip.tare);
+        const net = data.net !== undefined ? data.net : (data.netWeight !== undefined ? data.netWeight : Math.max((gross || 0) - (tare || 0), 0));
+        const loss = data.loss !== undefined ? data.loss : (data.lossWeight !== undefined ? data.lossWeight : (data.customerWeight !== undefined ? (data.customerWeight ? Math.max(net - data.customerWeight, 0) : 0) : slip.loss));
 
         const result = await query(
             `UPDATE weigh_slips SET
@@ -1235,14 +1524,14 @@ export const weighSlipQueries = {
       RETURNING *`,
             [
                 data.slipNo || slip.slipNo,
-                data.slipDate || slip.slipDate,
+                data.date || data.slipDate || slip.date,
                 vehicleId,
                 productId,
-                data.grossWeight !== undefined ? data.grossWeight : slip.grossWeight,
-                data.tareWeight !== undefined ? data.tareWeight : slip.tareWeight,
-                data.netWeight !== undefined ? data.netWeight : slip.netWeight,
+                gross,
+                tare,
+                net,
                 data.customerWeight !== undefined ? data.customerWeight : slip.customerWeight,
-                data.lossWeight !== undefined ? data.lossWeight : slip.lossWeight,
+                loss,
                 data.dealId || slip.dealId || null,
                 data.status || slip.status,
                 data.cancelled !== undefined ? data.cancelled : slip.cancelled,
@@ -1251,7 +1540,7 @@ export const weighSlipQueries = {
                 id,
             ]
         );
-        return this.getById(result.rows[0].id);
+        return this.getById(id);
     },
 
     async delete(id: string) {
@@ -1406,12 +1695,12 @@ export const tripQueries = {
         const result = await query(
             `SELECT t.id,
                     t.trip_no AS trip_no,
-                    t.trip_date AS trip_date,
+                    t.trip_date AS date,
                     t.source,
                     t.destination,
                     t.weight,
                     t.revenue,
-                    t.trip_expenses AS trip_expenses,
+                    t.trip_expenses AS expense,
                     t.net_profit AS net_profit,
                     t.status,
                     t.vehicle_id AS vehicle_id,
@@ -1431,12 +1720,12 @@ export const tripQueries = {
         const result = await query(
             `SELECT t.id,
                     t.trip_no AS trip_no,
-                    t.trip_date AS trip_date,
+                    t.trip_date AS date,
                     t.source,
                     t.destination,
                     t.weight,
                     t.revenue,
-                    t.trip_expenses AS trip_expenses,
+                    t.trip_expenses AS expense,
                     t.net_profit AS net_profit,
                     t.status,
                     t.vehicle_id AS vehicle_id,
@@ -1460,7 +1749,8 @@ export const tripQueries = {
         const tripNo = data.tripNo || await getNextTripNo();
         const vehicleId = await resolveVehicleId(data.vehicle || data.vehicleId);
         const driverId = await resolveDriverId(data.driver || data.driverId);
-        const netProfit = (data.revenue || 0) - (data.tripExpenses || 0);
+        const exp = data.expense !== undefined ? data.expense : (data.tripExpenses !== undefined ? data.tripExpenses : 0);
+        const netProfit = (data.revenue || 0) - exp;
 
         const result = await query(
             `INSERT INTO trips (
@@ -1471,14 +1761,14 @@ export const tripQueries = {
       RETURNING *`,
             [
                 tripNo,
-                data.date || data.tripDate || null,
+                data.date || data.tripDate || getLocalDateString(),
                 vehicleId,
                 driverId,
                 data.source,
                 data.destination,
                 data.weight,
                 data.revenue,
-                data.tripExpenses || 0,
+                exp,
                 netProfit,
                 data.dealId || null,
                 data.status || 'Pending',
@@ -1491,7 +1781,9 @@ export const tripQueries = {
         const trip = await this.getById(id);
         const vehicleId = await resolveVehicleId(data.vehicle || data.vehicleId || trip.vehicle);
         const driverId = await resolveDriverId(data.driver || data.driverId || trip.driver);
-        const netProfit = (data.revenue !== undefined ? data.revenue : trip.revenue) - (data.tripExpenses !== undefined ? data.tripExpenses : trip.tripExpenses || 0);
+        
+        const exp = data.expense !== undefined ? data.expense : (data.tripExpenses !== undefined ? data.tripExpenses : trip.expense || 0);
+        const netProfit = (data.revenue !== undefined ? data.revenue : trip.revenue) - exp;
 
         const result = await query(
             `UPDATE trips SET
@@ -1512,76 +1804,26 @@ export const tripQueries = {
       RETURNING *`,
             [
                 data.tripNo || trip.tripNo,
-                data.date || trip.date,
+                data.date || data.tripDate || trip.date,
                 vehicleId,
                 driverId,
                 data.source || trip.source,
                 data.destination || trip.destination,
                 data.weight !== undefined ? data.weight : trip.weight,
                 data.revenue !== undefined ? data.revenue : trip.revenue,
-                data.tripExpenses !== undefined ? data.tripExpenses : trip.tripExpenses,
+                exp,
                 netProfit,
                 data.dealId || trip.dealId || null,
                 data.status || trip.status,
                 id,
             ]
         );
-        return this.getById(result.rows[0].id);
+        return this.getById(id);
     },
 
     async delete(id: string) {
         await this.getById(id);
         await query('DELETE FROM trips WHERE id = $1', [id]);
-        return { success: true };
-    },
-};
-
-export const hsnQueries = {
-    async getAll() {
-        const result = await query('SELECT * FROM hsn_catalog ORDER BY hsn_code ASC');
-        return camelizeRows(result.rows);
-    },
-
-    async getById(id: string) {
-        const result = await query('SELECT * FROM hsn_catalog WHERE id = $1', [id]);
-        if (result.rows.length === 0) {
-            throw new ApiError(404, 'HSN code not found');
-        }
-        return camelizeRow(result.rows[0]);
-    },
-
-    async create(data: any) {
-        const result = await query(
-            `INSERT INTO hsn_catalog (hsn_code, description, gst_rate)
-             VALUES ($1, $2, $3)
-             RETURNING *`,
-            [data.code, data.description || null, data.gstRate || 0]
-        );
-        return camelizeRow(result.rows[0]);
-    },
-
-    async update(id: string, data: any) {
-        const existing = await this.getById(id);
-        const result = await query(
-            `UPDATE hsn_catalog SET
-                hsn_code = $1,
-                description = $2,
-                gst_rate = $3
-             WHERE id = $4
-             RETURNING *`,
-            [
-                data.code || existing.hsnCode,
-                data.description !== undefined ? data.description : existing.description,
-                data.gstRate !== undefined ? data.gstRate : existing.gstRate,
-                id,
-            ]
-        );
-        return camelizeRow(result.rows[0]);
-    },
-
-    async delete(id: string) {
-        await this.getById(id);
-        await query('DELETE FROM hsn_catalog WHERE id = $1', [id]);
         return { success: true };
     },
 };

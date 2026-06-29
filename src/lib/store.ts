@@ -23,6 +23,12 @@ import {
   getPurchaseInvoices,
   getWeighSlips,
   getDeliveryChallans,
+  getPayments,
+  getExpenses,
+  getHsnCodes,
+  getCompanyProfile,
+  getDeals,
+  getExpenseHeads,
 } from "./api/clients";
 
 export type DocStatus = "Active" | "Cancelled";
@@ -89,6 +95,13 @@ export interface HsnCode extends Cancelable {
   description?: string;
 }
 
+export interface ExpenseHead extends Cancelable {
+  id: string;
+  name: string;
+  code?: string;
+  description?: string;
+}
+
 export type EntityKey =
   | "customers"
   | "suppliers"
@@ -103,7 +116,9 @@ export type EntityKey =
   | "purchaseInvoices"
   | "payments"
   | "hsnCodes"
-  | "expenses";
+  | "expenses"
+  | "deals"
+  | "expenseHeads";
 
 export interface Payment extends Cancelable {
   id: string;
@@ -115,6 +130,54 @@ export interface Payment extends Cancelable {
   amount: number;
   reference?: string;
   note?: string;
+  dealId?: string;
+}
+
+export interface CDeal extends Cancelable {
+  id: string;
+  dealNo: string;
+  dealDate?: string;
+  customerId?: string;
+  customer?: string;
+  supplierId?: string;
+  supplier?: string;
+  orderId?: string;
+  orderNo?: string;
+  orderQty?: number;
+  rate?: number;
+  orderStatus?: string;
+  weighSlipId?: string;
+  ourWeight?: number;
+  customerWeight?: number;
+  lossWeight?: number;
+  vehicle?: string;
+  driver?: string;
+  product?: string;
+  challanId?: string;
+  challanNo?: string;
+  challanQty?: number;
+  tripId?: string;
+  tripNo?: string;
+  tripWeight?: number;
+  tripRevenue?: number;
+  tripExpense?: number;
+  salesInvoiceId?: string;
+  salesInvoiceNo?: string;
+  salesSubTotal?: number;
+  salesGstAmount?: number;
+  salesInvoiceAmount?: number;
+  salesInvoiceStatus?: string;
+  purchaseInvoiceId?: string;
+  purchaseInvoiceNo?: string;
+  purchaseSubTotal?: number;
+  purchaseGstAmount?: number;
+  purchaseInvoiceAmount?: number;
+  purchaseInvoiceStatus?: string;
+  totalValue?: number;
+  status?: string;
+  receivedAmount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface State {
@@ -132,6 +195,9 @@ interface State {
   payments: Payment[];
   hsnCodes: HsnCode[];
   expenses: Expense[];
+  companyProfile: any;
+  deals: CDeal[];
+  expenseHeads: ExpenseHead[];
 }
 
 interface Actions {
@@ -157,6 +223,9 @@ const initial: State = {
   payments: [],
   hsnCodes: [],
   expenses: [],
+  companyProfile: null,
+  deals: [],
+  expenseHeads: [],
 };
 
 export const useErp = create<State & Actions>()(
@@ -234,7 +303,7 @@ interface ThemeState {
 
 export const useTheme = create<ThemeState>()(
   (set) => ({
-    theme: "dark",
+    theme: "light",
     toggleTheme: () =>
       set((state) => {
         const newTheme = state.theme === "dark" ? "light" : "dark";
@@ -266,8 +335,15 @@ export function newId(prefix = "x"): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
+export function getLocalDateString(): string {
+  const d = new Date();
+  const offset = d.getTimezoneOffset();
+  const localDate = new Date(d.getTime() - offset * 60 * 1000);
+  return localDate.toISOString().slice(0, 10);
+}
+
 export async function loadBackendData(): Promise<void> {
-  const [customersResult, suppliersResult, productsResult, vehiclesResult, driversResult, ordersResult, tripsResult, salesInvoicesResult, purchaseInvoicesResult, weighSlipsResult, deliveryChallansResult] =
+  const [customersResult, suppliersResult, productsResult, vehiclesResult, driversResult, ordersResult, tripsResult, salesInvoicesResult, purchaseInvoicesResult, weighSlipsResult, deliveryChallansResult, paymentsResult, expensesResult, hsnCodesResult, companyProfileResult, dealsResult, expenseHeadsResult] =
     await Promise.allSettled([
       getCustomers(),
       getSuppliers(),
@@ -280,6 +356,12 @@ export async function loadBackendData(): Promise<void> {
       getPurchaseInvoices(),
       getWeighSlips(),
       getDeliveryChallans(),
+      getPayments(),
+      getExpenses(),
+      getHsnCodes(),
+      getCompanyProfile(),
+      getDeals(),
+      getExpenseHeads(),
     ]);
 
   useErp.setState({
@@ -294,9 +376,15 @@ export async function loadBackendData(): Promise<void> {
     purchaseInvoices: purchaseInvoicesResult.status === "fulfilled" ? purchaseInvoicesResult.value : [],
     weighSlips: weighSlipsResult.status === "fulfilled" ? weighSlipsResult.value : [],
     deliveryChallans: deliveryChallansResult.status === "fulfilled" ? deliveryChallansResult.value : [],
+    payments: paymentsResult.status === "fulfilled" ? paymentsResult.value : [],
+    expenses: expensesResult.status === "fulfilled" ? expensesResult.value : [],
+    hsnCodes: hsnCodesResult.status === "fulfilled" ? hsnCodesResult.value : [],
+    companyProfile: companyProfileResult.status === "fulfilled" ? companyProfileResult.value : null,
+    deals: dealsResult.status === "fulfilled" ? dealsResult.value : [],
+    expenseHeads: expenseHeadsResult.status === "fulfilled" ? expenseHeadsResult.value : [],
   });
 
-  if (customersResult.status === "rejected" || suppliersResult.status === "rejected" || productsResult.status === "rejected" || vehiclesResult.status === "rejected" || driversResult.status === "rejected" || ordersResult.status === "rejected" || tripsResult.status === "rejected" || salesInvoicesResult.status === "rejected" || purchaseInvoicesResult.status === "rejected" || weighSlipsResult.status === "rejected" || deliveryChallansResult.status === "rejected") {
+  if (customersResult.status === "rejected" || suppliersResult.status === "rejected" || productsResult.status === "rejected" || vehiclesResult.status === "rejected" || driversResult.status === "rejected" || ordersResult.status === "rejected" || tripsResult.status === "rejected" || salesInvoicesResult.status === "rejected" || purchaseInvoicesResult.status === "rejected" || weighSlipsResult.status === "rejected" || deliveryChallansResult.status === "rejected" || hsnCodesResult.status === "rejected" || companyProfileResult.status === "rejected" || dealsResult.status === "rejected" || expenseHeadsResult.status === "rejected") {
     console.warn("Backend data load had partial failures.");
   }
 }

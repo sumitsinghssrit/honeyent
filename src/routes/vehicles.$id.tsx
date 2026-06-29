@@ -5,16 +5,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { newId, useErp, EXPENSE_CATEGORIES, active } from "@/lib/store";
-import { nextNo } from "@/lib/numbering";
+import { useErp, EXPENSE_CATEGORIES, active, loadBackendData, getLocalDateString } from "@/lib/store";
+import { createExpense } from "@/lib/api/clients";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { inr, daysUntil } from "@/lib/mock-data";
-// useErp and active imported above
 import { vehicleProfile } from "@/lib/insights";
+import { DateRangeFilter, EMPTY_RANGE, inRange, type DateRange } from "@/components/date-range-filter";
 
 export const Route = createFileRoute("/vehicles/$id")({
   head: () => ({ meta: [{ title: "Vehicle 360 — Honey Enterprises ERP" }] }),
@@ -29,136 +29,153 @@ function expiryBadge(date?: string) {
 }
 
 function Vehicle360() {
- const { id } = useParams({ from: "/vehicles/$id" });
+  const { id } = useParams({ from: "/vehicles/$id" });
+  const allVehicles = useErp((s) => s.vehicles);
+  const v = allVehicles.find((x) => String(x.id) === String(id));
 
-const v = useErp((s) =>
-  s.vehicles.find((x) => String(x.id) === String(id))
-);
+  const trips = active(useErp((s) => s.trips));
+  const expenses = useErp((s) => s.expenses);
 
-const trips = active(useErp((s) => s.trips));
-const expenses = useErp((s) => s.expenses);
+  const [range, setRange] = useState<DateRange>(EMPTY_RANGE);
+  const [expOpen, setExpOpen] = useState(false);
+  const [expAmount, setExpAmount] = useState(0);
+  const [expCategory, setExpCategory] = useState<typeof EXPENSE_CATEGORIES[number]>(EXPENSE_CATEGORIES[0]);
+  const [expMode, setExpMode] = useState<"Cash" | "Bank" | "UPI" | "Cheque">("Cash");
+  const [expNote, setExpNote] = useState("");
 
-const [expOpen, setExpOpen] = useState(false);
-const [expAmount, setExpAmount] = useState(0);
+  if (!v) {
+    return (
+      <div className="p-10">
+        <Button variant="ghost" asChild>
+          <Link to="/vehicles">
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Back
+          </Link>
+        </Button>
+        <p className="mt-4 text-sm text-muted-foreground">Vehicle not found.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Vehicle ID: {id}</p>
+      </div>
+    );
+  }
 
-const [expCategory, setExpCategory] =
-  useState<typeof EXPENSE_CATEGORIES[number]>(
-    EXPENSE_CATEGORIES[0]
-  );
+  // Filter trips and expenses by date range
+  const visibleTrips = trips.filter((t) => t.vehicle === v.number && inRange(t.date, range));
+  const visibleExpenses = expenses.filter((e) => !e.cancelled && e.vehicle === v.number && inRange(e.date, range));
 
-const [expMode, setExpMode] =
-  useState<"Cash" | "Bank" | "UPI" | "Cheque">("Cash");
-
-const [expNote, setExpNote] = useState("");
-
-if (!v) {
-  return (
-    <div className="p-10">
-      <Button variant="ghost" asChild>
-        <Link to="/vehicles">
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back
-        </Link>
-      </Button>
-
-      <p className="mt-4 text-sm text-muted-foreground">
-        Vehicle not found.
-      </p>
-
-      <p className="mt-2 text-xs text-muted-foreground">
-        Route ID: {id}
-      </p>
-    </div>
-  );
-}
-
-const p = vehicleProfile(v, { trips, expenses });
+  const p = vehicleProfile(v, { trips: visibleTrips, expenses: visibleExpenses });
 
   return (
     <div>
       <PageHeader
         title={v.number}
-        description={`${v.ownership} • ${v.capacity} MT capacity • Vehicle 360°`}
-        actions={<Button variant="outline" size="sm" asChild><Link to="/vehicles"><ArrowLeft className="mr-1 h-4 w-4" />All vehicles</Link></Button>}
+        description={`${v.ownership} • ${v.capacity} MT Capacity • Vehicle 360° View`}
+        actions={
+          <>
+            <Button size="sm" onClick={() => setExpOpen(true)}><Truck className="mr-1 h-4 w-4" />Add expense</Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/vehicles">
+                <ArrowLeft className="mr-1 h-4 w-4" />All vehicles
+              </Link>
+            </Button>
+          </>
+        }
       />
 
-      <div className="grid gap-4 px-6 pt-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Revenue" value={inr(p.revenue)} hint={`${p.trips.length} trips`} icon={IndianRupee} tone="success" />
-        <StatCard label="Profit" value={inr(p.profit)} hint={`Margin ${p.revenue ? Math.round((p.profit / p.revenue) * 100) : 0}%`} icon={TrendingUp} tone={p.profit >= 0 ? "primary" : "destructive"} />
-        <StatCard label="Tons moved" value={`${p.tonsMoved} MT`} hint={`Cost/ton ${inr(p.costPerTon)}`} icon={RouteIcon} tone="info" />
-        <StatCard label="Total op-ex" value={inr(p.tripExp + p.extras)} hint={`Fuel ${inr(p.fuel)}`} icon={Truck} tone="warning" />
-      </div>
+      <div className="space-y-4 px-6 pb-6">
+        <DateRangeFilter value={range} onChange={setRange} />
 
-      <div className="px-6 pb-6">
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => setExpOpen(true)}><Truck className="mr-1 h-4 w-4" />Add expense</Button>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Revenue" value={inr(p.revenue)} hint={`${p.trips.length} trips`} icon={IndianRupee} tone="success" />
+          <StatCard label="Profit" value={inr(p.profit)} hint={`Margin ${p.revenue ? Math.round((p.profit / p.revenue) * 100) : 0}%`} icon={TrendingUp} tone={p.profit >= 0 ? "primary" : "destructive"} />
+          <StatCard label="Tons moved" value={`${p.tonsMoved} MT`} hint={`Cost/ton ${inr(p.costPerTon)}`} icon={RouteIcon} tone="info" />
+          <StatCard label="Total op-ex" value={inr(p.tripExp + p.extras)} hint={`Fuel ${inr(p.fuel)}`} icon={Truck} tone="warning" />
         </div>
-      </div>
 
-      <div className="grid gap-4 px-6 py-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <h3 className="font-display text-sm font-semibold">Documents</h3>
-          <div className="mt-3 space-y-3 text-sm">
-            <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground"><ShieldCheck className="mr-1 inline h-3 w-3" />Insurance</span><span className="flex items-center gap-2"><span className="text-xs">{v.insuranceExpiry}</span>{expiryBadge(v.insuranceExpiry)}</span></div>
-            <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Fitness</span><span className="flex items-center gap-2"><span className="text-xs">{v.fitnessExpiry}</span>{expiryBadge(v.fitnessExpiry)}</span></div>
-            <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Permit</span><span className="flex items-center gap-2"><span className="text-xs">{v.permitExpiry}</span>{expiryBadge(v.permitExpiry)}</span></div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <h3 className="font-display text-sm font-semibold">Documents</h3>
+            <div className="mt-3 space-y-3 text-sm">
+              <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground"><ShieldCheck className="mr-1 inline h-3 w-3" />Insurance</span><span className="flex items-center gap-2"><span className="text-xs">{v.insuranceExpiry}</span>{expiryBadge(v.insuranceExpiry)}</span></div>
+              <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Fitness</span><span className="flex items-center gap-2"><span className="text-xs">{v.fitnessExpiry}</span>{expiryBadge(v.fitnessExpiry)}</span></div>
+              <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Permit</span><span className="flex items-center gap-2"><span className="text-xs">{v.permitExpiry}</span>{expiryBadge(v.permitExpiry)}</span></div>
+            </div>
           </div>
-        </div>
 
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <h3 className="font-display text-sm font-semibold">Cost breakdown</h3>
-          <ul className="mt-3 space-y-2 text-sm">
-            <CostRow icon={Fuel} label="Diesel / Fuel" value={p.fuel} total={p.tripExp + p.extras} />
-            <CostRow icon={Wrench} label="Repair & Maintenance" value={p.repair} total={p.tripExp + p.extras} />
-            <CostRow icon={Truck} label="Tyre" value={p.tyre} total={p.tripExp + p.extras} />
-            <CostRow icon={ShieldCheck} label="Insurance / Permit" value={p.insurance} total={p.tripExp + p.extras} />
-          </ul>
-        </div>
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <h3 className="font-display text-sm font-semibold">Cost breakdown</h3>
+            <ul className="mt-3 space-y-2 text-sm">
+              <CostRow icon={Fuel} label="Diesel / Fuel" value={p.fuel} total={p.tripExp + p.extras} />
+              <CostRow icon={Wrench} label="Repair & Maintenance" value={p.repair} total={p.tripExp + p.extras} />
+              <CostRow icon={Truck} label="Tyre" value={p.tyre} total={p.tripExp + p.extras} />
+              <CostRow icon={ShieldCheck} label="Insurance / Permit" value={p.insurance} total={p.tripExp + p.extras} />
+            </ul>
+          </div>
 
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <h3 className="font-display text-sm font-semibold">P&amp;L summary</h3>
-          <div className="mt-3 space-y-2 text-sm">
-            <KV k="Trip revenue" v={inr(p.revenue)} />
-            <KV k="Trip expenses" v={`- ${inr(p.tripExp)}`} />
-            <KV k="Other op-ex" v={`- ${inr(p.extras)}`} />
-            <div className="mt-2 flex items-center justify-between rounded-md bg-muted/40 p-2">
-              <span className="font-medium">Net profit</span>
-              <span className={`font-display text-lg font-semibold ${p.profit >= 0 ? "text-success" : "text-destructive"}`}>{inr(p.profit)}</span>
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <h3 className="font-display text-sm font-semibold">P&amp;L summary</h3>
+            <div className="mt-3 space-y-2 text-sm">
+              <KV k="Trip revenue" v={inr(p.revenue)} />
+              <KV k="Trip expenses" v={`- ${inr(p.tripExp)}`} />
+              <KV k="Other op-ex" v={`- ${inr(p.extras)}`} />
+              <div className="mt-2 flex items-center justify-between rounded-md bg-muted/40 p-2">
+                <span className="font-medium">Net profit</span>
+                <span className={`font-display text-lg font-semibold ${p.profit >= 0 ? "text-success" : "text-destructive"}`}>{inr(p.profit)}</span>
+              </div>
             </div>
           </div>
         </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Panel title="Trip history" empty={p.trips.length === 0}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Trip</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Route</TableHead>
+                  <TableHead className="text-right">MT</TableHead>
+                  <TableHead className="text-right">Profit</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {p.trips.map((t) => (
+                  <TableRow key={t.id}>
+                    <TableCell className="font-mono text-xs">{t.tripNo}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{t.date}</TableCell>
+                    <TableCell className="text-xs">{t.source} → {t.destination}</TableCell>
+                    <TableCell className="text-right tabular-nums">{t.weight}</TableCell>
+                    <TableCell className={`text-right tabular-nums ${t.revenue - t.expense >= 0 ? "text-success" : "text-destructive"}`}>{inr(t.revenue - t.expense)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Panel>
+
+          <Panel title="Service & expense register" empty={p.expenses.length === 0}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Voucher</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {p.expenses.map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell className="font-mono text-xs">{e.no}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{e.date}</TableCell>
+                    <TableCell><Badge variant="outline">{e.category}</Badge></TableCell>
+                    <TableCell className="text-right tabular-nums">{inr(e.amount)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Panel>
+        </div>
       </div>
 
-      <div className="grid gap-4 px-6 pb-6 lg:grid-cols-2">
-        <Panel title="Trip history" empty={p.trips.length === 0}>
-          <Table>
-            <TableHeader><TableRow><TableHead>Trip</TableHead><TableHead>Date</TableHead><TableHead>Route</TableHead><TableHead className="text-right">MT</TableHead><TableHead className="text-right">Profit</TableHead></TableRow></TableHeader>
-            <TableBody>{p.trips.map((t) => (
-              <TableRow key={t.id}>
-                <TableCell className="font-mono text-xs">{t.tripNo}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{t.date}</TableCell>
-                <TableCell className="text-xs">{t.source} → {t.destination}</TableCell>
-                <TableCell className="text-right tabular-nums">{t.weight}</TableCell>
-                <TableCell className={`text-right tabular-nums ${t.revenue - t.expense >= 0 ? "text-success" : "text-destructive"}`}>{inr(t.revenue - t.expense)}</TableCell>
-              </TableRow>
-            ))}</TableBody>
-          </Table>
-        </Panel>
-
-        <Panel title="Service & expense register" empty={p.expenses.length === 0}>
-          <Table>
-            <TableHeader><TableRow><TableHead>Voucher</TableHead><TableHead>Date</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
-            <TableBody>{p.expenses.map((e) => (
-              <TableRow key={e.id}>
-                <TableCell className="font-mono text-xs">{e.no}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{e.date}</TableCell>
-                <TableCell><Badge variant="outline">{e.category}</Badge></TableCell>
-                <TableCell className="text-right tabular-nums">{inr(e.amount)}</TableCell>
-              </TableRow>
-            ))}</TableBody>
-          </Table>
-        </Panel>
-      </div>
       <Dialog open={expOpen} onOpenChange={(v) => !v && setExpOpen(false)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -166,7 +183,7 @@ const p = vehicleProfile(v, { trips, expenses });
             <DialogDescription>{v.number}</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5"><Label className="text-xs">Date</Label><Input type="date" value={new Date().toISOString().slice(0, 10)} readOnly /></div>
+            <div className="grid gap-1.5"><Label className="text-xs">Date</Label><Input type="date" value={getLocalDateString()} readOnly /></div>
             <div className="grid gap-1.5"><Label className="text-xs">Amount</Label><Input type="number" value={expAmount || ""} onChange={(e) => setExpAmount(Number(e.target.value))} /></div>
             <div className="grid gap-1.5"><Label className="text-xs">Category</Label>
               <select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={expCategory} onChange={(e) => setExpCategory(e.target.value as any)}>
@@ -184,12 +201,23 @@ const p = vehicleProfile(v, { trips, expenses });
             <Button variant="outline" onClick={() => setExpOpen(false)}>Cancel</Button>
             <Button onClick={() => {
               if (expAmount <= 0) return toast.error("Enter amount");
-              const no = nextNo("EXP" as never) || `EXP/${Date.now().toString().slice(-6)}`;
-              useErp.getState().add("expenses", {
-                id: newId("exp"), no, date: new Date().toISOString().slice(0, 10), category: expCategory, vehicle: v.number, paidTo: v.number, mode: expMode, amount: expAmount, remark: expNote,
-              });
-              toast.success("Expense recorded");
-              setExpOpen(false); setExpAmount(0); setExpNote("");
+              createExpense({
+                expenseDate: getLocalDateString(),
+                category: expCategory,
+                vehicle: v.number,
+                paidTo: v.number,
+                paymentMode: expMode,
+                amount: expAmount,
+                remarks: expNote,
+              })
+                .then(async () => {
+                  await loadBackendData();
+                  toast.success("Expense recorded");
+                  setExpOpen(false); setExpAmount(0); setExpNote("");
+                })
+                .catch((error) => {
+                  toast.error("Failed to save expense", { description: error.message });
+                });
             }}>Save</Button>
           </DialogFooter>
         </DialogContent>

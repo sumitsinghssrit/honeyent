@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
-import { useErp, active, loadBackendData } from "@/lib/store";
+import { useErp, active, loadBackendData, getLocalDateString } from "@/lib/store";
 import { inr } from "@/lib/mock-data";
 import {
   createOrder,
@@ -26,10 +26,6 @@ import {
   updateDeal,
 } from "@/lib/api/clients";
 
-interface Props {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-}
 
 export function OneShotOrderDialog({ open, onOpenChange }: Props) {
   const customers = active(useErp((s) => s.customers));
@@ -39,7 +35,7 @@ export function OneShotOrderDialog({ open, onOpenChange }: Props) {
   const drivers = active(useErp((s) => s.drivers));
 
   const [f, setF] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: getLocalDateString(),
     customer: "",
     shipTo: "",
     supplier: "",
@@ -58,25 +54,14 @@ export function OneShotOrderDialog({ open, onOpenChange }: Props) {
 
   useEffect(() => {
     if (open) {
-      setF((s) => ({ ...s, date: new Date().toISOString().slice(0, 10) }));
+      setF((s) => ({ ...s, date: getLocalDateString() }));
     }
   }, [open]);
 
   const product = useMemo(() => products.find((p) => p.name === f.product), [products, f.product]);
   const customer = useMemo(() => customers.find((c) => c.name === f.customer), [customers, f.customer]);
 
-  // auto-fill rate when product picked
-  useEffect(() => {
-    if (product && f.rate === "") {
-      setF((s) => ({ ...s, rate: String(product.rate) }));
-    }
-  }, [product, f.rate]);
 
-  useEffect(() => {
-    if (f.supplier && !f.source) {
-      setF((s) => ({ ...s, source: f.supplier }));
-    }
-  }, [f.supplier, f.source]);
 
   const qtyNumber = Number(f.qty) || 0;
   const rateNumber = Number(f.rate) || 0;
@@ -93,6 +78,19 @@ export function OneShotOrderDialog({ open, onOpenChange }: Props) {
   async function save() {
     if (!f.customer || !f.product || !f.vehicle || !f.qty || !f.rate) {
       toast.error("Please fill customer, product, vehicle, qty and rate");
+      return;
+    }
+
+    if (qtyNumber < 0) {
+      toast.error("Quantity cannot be negative");
+      return;
+    }
+    if (rateNumber < 0) {
+      toast.error("Rate cannot be negative");
+      return;
+    }
+    if (freightNumber < 0) {
+      toast.error("Freight cannot be negative");
       return;
     }
 
@@ -206,7 +204,7 @@ export function OneShotOrderDialog({ open, onOpenChange }: Props) {
       });
       onOpenChange(false);
       setF({
-        date: new Date().toISOString().slice(0, 10),
+        date: getLocalDateString(),
         customer: "", shipTo: "", supplier: "", product: "",
         vehicle: "", driver: "", qty: "", rate: "", freight: "",
         source: "", destination: "", paymentTerms: "Net 15 days", remark: "",
@@ -216,24 +214,6 @@ export function OneShotOrderDialog({ open, onOpenChange }: Props) {
     } finally {
       setSaving(false);
     }
-  }
-
-  function S({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
-    return (
-      <div className={`grid gap-1.5 ${full ? "col-span-2" : ""}`}>
-        <Label className="text-xs">{label}</Label>
-        {children}
-      </div>
-    );
-  }
-
-  function Sel({ value, onChange, options, placeholder }: { value: string; onChange: (v: string) => void; options: string[]; placeholder: string }) {
-    return (
-      <select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{placeholder}</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-    );
   }
 
   return (
@@ -255,8 +235,35 @@ export function OneShotOrderDialog({ open, onOpenChange }: Props) {
           <S label="Customer *"><Sel value={f.customer} onChange={(v) => set("customer", v)} options={customers.map((c) => c.name)} placeholder="Select customer" /></S>
           <S label="Ship to (optional)"><Input value={f.shipTo} onChange={(e) => set("shipTo", e.target.value)} placeholder={customer?.city || "Site address"} /></S>
 
-          <S label="Supplier / Source (optional)"><Sel value={f.supplier} onChange={(v) => set("supplier", v)} options={suppliers.map((s) => s.name)} placeholder="Select supplier / source" /></S>
-          <S label="Product *"><Sel value={f.product} onChange={(v) => set("product", v)} options={products.map((p) => p.name)} placeholder="Select product" /></S>
+          <S label="Supplier / Source (optional)">
+            <Sel
+              value={f.supplier}
+              onChange={(v) => {
+                setF((s) => ({
+                  ...s,
+                  supplier: v,
+                  source: v ? (s.source ? s.source : v) : s.source
+                }));
+              }}
+              options={suppliers.map((s) => s.name)}
+              placeholder="Select supplier / source"
+            />
+          </S>
+          <S label="Product *">
+            <Sel
+              value={f.product}
+              onChange={(v) => {
+                const selectedProd = products.find((p) => p.name === v);
+                setF((s) => ({
+                  ...s,
+                  product: v,
+                  rate: selectedProd ? String(selectedProd.rate) : s.rate
+                }));
+              }}
+              options={products.map((p) => p.name)}
+              placeholder="Select product"
+            />
+          </S>
 
           <S label="Vehicle *"><Sel value={f.vehicle} onChange={(v) => set("vehicle", v)} options={vehicles.map((v) => v.number)} placeholder="Select vehicle" /></S>
           <S label="Driver"><Sel value={f.driver} onChange={(v) => set("driver", v)} options={drivers.map((d) => d.name)} placeholder="Select driver" /></S>
@@ -301,5 +308,23 @@ export function OneShotOrderDialog({ open, onOpenChange }: Props) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function S({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
+  return (
+    <div className={`grid gap-1.5 ${full ? "col-span-2" : ""}`}>
+      <Label className="text-xs">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function Sel({ value, onChange, options, placeholder }: { value: string; onChange: (v: string) => void; options: string[]; placeholder: string }) {
+  return (
+    <select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{placeholder}</option>
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+    </select>
   );
 }

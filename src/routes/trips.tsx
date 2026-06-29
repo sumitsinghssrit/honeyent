@@ -10,9 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { inr } from "@/lib/mock-data";
-import { useErp, active, type CTrip, loadBackendData } from "@/lib/store";
+import { useErp, active, type CTrip, loadBackendData, getLocalDateString } from "@/lib/store";
 import { EntityDialog, CancelDialog, type FieldDef } from "@/components/entity-dialog";
 import { generateDocPdf, generatePdf } from "@/lib/pdf";
+import { exportExcel } from "@/lib/export";
 import { createTrip, updateTrip, deleteTrip } from "@/lib/api/clients";
 
 export const Route = createFileRoute("/trips")({
@@ -31,8 +32,8 @@ function TripsPage() {
   const [loading, setLoading] = useState(false);
 
   const liveTrips = active(trips);
-  const revenue = liveTrips.reduce((a, t) => a + t.revenue, 0);
-  const expense = liveTrips.reduce((a, t) => a + t.expense, 0);
+  const revenue = liveTrips.reduce((a, t) => a + Number(t.revenue || 0), 0);
+  const expense = liveTrips.reduce((a, t) => a + Number(t.expense || 0), 0);
 
   const fields: FieldDef[] = [
     { name: "date", label: "Date", type: "date", required: true, half: true },
@@ -67,10 +68,10 @@ function TripsPage() {
 
       if (editing) {
         await updateTrip(String(editing.id), data);
-        toast.success(`Trip updated`);
+        toast.success(`✅ Trip updated successfully.`);
       } else {
         await createTrip(data);
-        toast.success(`Trip created`);
+        toast.success(`✅ Trip saved successfully.`);
       }
 
       await loadBackendData();
@@ -115,12 +116,26 @@ function TripsPage() {
     });
   }
 
+  function exportExcelData() {
+    exportExcel(
+      "Trip Register & P&L",
+      ["Trip", "Date", "Vehicle", "Driver", "Source", "Destination", "MT", "Revenue", "Expense", "Profit"],
+      liveTrips.map((t) => [t.tripNo, t.date, t.vehicle, t.driver, t.source, t.destination, t.weight, t.revenue, t.expense, t.revenue - t.expense]),
+      [
+        { label: "Total revenue", value: inr(revenue) },
+        { label: "Total expense", value: inr(expense) },
+        { label: "Net profit", value: inr(revenue - expense) },
+      ]
+    );
+  }
+
   return (
     <div>
       <PageHeader title="Trips"
         description="Trip-wise revenue, expense and profitability across the fleet."
         actions={
           <>
+            <Button variant="outline" size="sm" onClick={exportExcelData}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
             <Button variant="outline" size="sm" onClick={exportPdf}><Download className="mr-1 h-4 w-4" />Export PDF</Button>
           </>
         } />
@@ -158,9 +173,9 @@ function TripsPage() {
                     <TableCell className="text-right tabular-nums text-muted-foreground">{inr(t.expense)}</TableCell>
                     <TableCell className={`text-right font-medium tabular-nums ${profit >= 0 ? "text-success" : "text-destructive"}`}>{inr(profit)}</TableCell>
                     <TableCell className="text-right whitespace-nowrap">
-                      <Button variant="ghost" size="sm" onClick={() => downloadTrip(t)}><FileDown className="h-3.5 w-3.5" /></Button>
-                      <Button variant="ghost" size="sm" disabled={t.cancelled} onClick={() => { setEditing(t); setOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
-                      <Button variant="ghost" size="sm" disabled={t.cancelled} onClick={() => setCancelTarget(t)}><Ban className="h-3.5 w-3.5 text-destructive" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => downloadTrip(t)} title="Download PDF"><FileDown className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="sm" disabled={t.cancelled} onClick={() => { setEditing(t); setOpen(true); }} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" disabled={t.cancelled} onClick={() => setCancelTarget(t)} title="Cancel Trip"><Ban className="h-3.5 w-3.5" /></Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -172,7 +187,7 @@ function TripsPage() {
 
       <EntityDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}
         title="Trip" fields={fields} mode={editing ? "edit" : "create"}
-        initial={editing ?? { date: new Date().toISOString().slice(0, 10), tripNo: `TRP-${1000 + trips.length + 1}` }}
+        initial={editing ? { ...editing, tripExpenses: editing.expense } : { date: getLocalDateString() }}
         onSubmit={handleSubmit} disabled={loading} />
       <CancelDialog open={!!cancelTarget} onOpenChange={(v) => !v && setCancelTarget(null)}
         title={cancelTarget ? `Cancel ${cancelTarget.tripNo}` : "Cancel"}

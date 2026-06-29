@@ -14,6 +14,7 @@ import type {
   Expense,
   Payment,
 } from "./store";
+import { getLocalDateString } from "./store";
 
 export interface Alert {
   id: string;
@@ -122,8 +123,8 @@ export function buildAlerts(args: {
   }
 
   // Cash balance
-  const cashIn = args.payments.filter((p) => p.direction === "In" && !p.cancelled).reduce((a, p) => a + p.amount, 0);
-  const cashOut = args.payments.filter((p) => p.direction === "Out" && !p.cancelled).reduce((a, p) => a + p.amount, 0);
+  const cashIn = args.payments.filter((p) => p.direction === "In" && !p.cancelled).reduce((a, p) => a + Number(p.amount || 0), 0);
+  const cashOut = args.payments.filter((p) => p.direction === "Out" && !p.cancelled).reduce((a, p) => a + Number(p.amount || 0), 0);
   const balance = cashIn - cashOut;
   if (balance < 50000 && args.payments.length > 0) {
     alerts.push({
@@ -147,10 +148,10 @@ export function customerProfile(c: CCustomer, args: {
   const orders = args.orders.filter((o) => o.customer === c.name);
   const invoices = args.invoices.filter((i) => i.party === c.name);
   const payments = args.payments.filter((p) => p.party === c.name && p.direction === "In");
-  const revenue = invoices.reduce((a, i) => a + i.amount, 0);
-  const collected = payments.reduce((a, p) => a + p.amount, 0);
+  const revenue = invoices.reduce((a, i) => a + Number(i.amount || 0), 0);
+  const collected = payments.reduce((a, p) => a + Number(p.amount || 0), 0);
   const productMap = new Map<string, number>();
-  for (const o of orders) productMap.set(o.product, (productMap.get(o.product) ?? 0) + o.qty);
+  for (const o of orders) productMap.set(o.product, (productMap.get(o.product) ?? 0) + Number(o.qty || 0));
   const topProducts = [...productMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const months = new Set(orders.map((o) => o.date.slice(0, 7)));
   const avgMonthly = months.size ? revenue / months.size : 0;
@@ -164,8 +165,8 @@ export function supplierProfile(s: CSupplier, args: {
 }) {
   const invoices = args.invoices.filter((i) => i.party === s.name);
   const payments = args.payments.filter((p) => p.party === s.name && p.direction === "Out");
-  const purchases = invoices.reduce((a, i) => a + i.amount, 0);
-  const paid = payments.reduce((a, p) => a + p.amount, 0);
+  const purchases = invoices.reduce((a, i) => a + Number(i.amount || 0), 0);
+  const paid = payments.reduce((a, p) => a + Number(p.amount || 0), 0);
   const avg = invoices.length ? purchases / invoices.length : 0;
   // simple rating from outstanding ratio
   const ratio = purchases ? paid / purchases : 1;
@@ -179,16 +180,16 @@ export function vehicleProfile(v: CVehicle, args: {
 }) {
   const trips = args.trips.filter((t) => t.vehicle === v.number);
   const expenses = args.expenses.filter((e) => !e.cancelled && e.vehicle === v.number);
-  const revenue = trips.reduce((a, t) => a + t.revenue, 0);
-  const tripExp = trips.reduce((a, t) => a + t.expense, 0);
-  const extras = expenses.reduce((a, e) => a + e.amount, 0);
-  const byCat = (cat: string) => expenses.filter((e) => e.category.includes(cat)).reduce((a, e) => a + e.amount, 0);
+  const revenue = trips.reduce((a, t) => a + Number(t.revenue || 0), 0);
+  const tripExp = trips.reduce((a, t) => a + Number(t.expense || 0), 0);
+  const extras = expenses.reduce((a, e) => a + Number(e.amount || 0), 0);
+  const byCat = (cat: string) => expenses.filter((e) => e.category.includes(cat)).reduce((a, e) => a + Number(e.amount || 0), 0);
   const fuel = byCat("Diesel");
   const repair = byCat("Repair") + byCat("Maintenance");
   const tyre = byCat("Tyre");
   const insurance = byCat("Insurance");
   const profit = revenue - tripExp - extras;
-  const tonsMoved = trips.reduce((a, t) => a + t.weight, 0);
+  const tonsMoved = trips.reduce((a, t) => a + Number(t.weight || 0), 0);
   const costPerTon = tonsMoved ? (tripExp + extras) / tonsMoved : 0;
   return { trips, expenses, revenue, tripExp, extras, fuel, repair, tyre, insurance, profit, tonsMoved, costPerTon };
 }
@@ -200,9 +201,9 @@ export function driverProfile(d: CDriver, args: {
   const trips = args.trips.filter((t) => t.driver === d.name);
   const expenses = args.expenses.filter((e) => !e.cancelled && e.driver === d.name);
   const orders = args.orders.filter((o) => o.driver === d.name);
-  const salary = expenses.filter((e) => e.category === "Driver Salary").reduce((a, e) => a + e.amount, 0);
-  const tonsMoved = trips.reduce((a, t) => a + t.weight, 0);
-  const revenue = trips.reduce((a, t) => a + t.revenue, 0);
+  const salary = expenses.filter((e) => e.category === "Driver Salary").reduce((a, e) => a + Number(e.amount || 0), 0);
+  const tonsMoved = trips.reduce((a, t) => a + Number(t.weight || 0), 0);
+  const revenue = trips.reduce((a, t) => a + Number(t.revenue || 0), 0);
   const delivered = orders.filter((o) => o.status === "Delivered" || o.status === "Billed" || o.status === "Closed").length;
   const successPct = orders.length ? Math.round((delivered / orders.length) * 100) : 0;
   const rating = successPct >= 90 ? 5 : successPct >= 75 ? 4 : successPct >= 50 ? 3 : 2;
@@ -223,12 +224,12 @@ export function controlTower(args: {
   };
   const busyVeh = new Set(o.filter((x) => x.status === "In Transit" || x.status === "Loaded").map((x) => x.vehicle));
   const busyDrv = new Set(o.filter((x) => x.status === "In Transit" || x.status === "Loaded").map((x) => x.driver));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
   const todayTrips = args.trips.filter((t) => t.date === today);
   const todayExp = args.expenses.filter((e) => !e.cancelled && e.date === today);
-  const revenue = todayTrips.reduce((a, t) => a + t.revenue, 0);
-  const tripExp = todayTrips.reduce((a, t) => a + t.expense, 0);
-  const opex = todayExp.reduce((a, e) => a + e.amount, 0);
+  const revenue = todayTrips.reduce((a, t) => a + Number(t.revenue || 0), 0);
+  const tripExp = todayTrips.reduce((a, t) => a + Number(t.expense || 0), 0);
+  const opex = todayExp.reduce((a, e) => a + Number(e.amount || 0), 0);
   return {
     counts,
     vehAvail: args.vehicles.length - busyVeh.size,
@@ -252,7 +253,7 @@ export function businessInsights(args: {
 
   // Most/least profitable customer (by revenue minus a cost proxy)
   const custRev = new Map<string, number>();
-  for (const i of args.invoices) custRev.set(i.party, (custRev.get(i.party) ?? 0) + i.amount);
+  for (const i of args.invoices) custRev.set(i.party, (custRev.get(i.party) ?? 0) + Number(i.amount || 0));
   const ranked = [...custRev.entries()].sort((a, b) => b[1] - a[1]);
   if (ranked.length) {
     insights.push({ label: "Top customer", value: ranked[0][0], sub: `₹${ranked[0][1].toLocaleString("en-IN")}`, tone: "good" });
@@ -261,7 +262,7 @@ export function businessInsights(args: {
 
   // Best / worst vehicle by profit
   const vehP = new Map<string, number>();
-  for (const t of args.trips) vehP.set(t.vehicle, (vehP.get(t.vehicle) ?? 0) + (t.revenue - t.expense));
+  for (const t of args.trips) vehP.set(t.vehicle, (vehP.get(t.vehicle) ?? 0) + (Number(t.revenue || 0) - Number(t.expense || 0)));
   const vehRanked = [...vehP.entries()].sort((a, b) => b[1] - a[1]);
   if (vehRanked.length) {
     insights.push({ label: "Best vehicle", value: vehRanked[0][0], sub: `Profit ₹${vehRanked[0][1].toLocaleString("en-IN")}`, tone: "good" });
@@ -272,7 +273,7 @@ export function businessInsights(args: {
   const fuel = new Map<string, number>();
   for (const e of args.expenses) {
     if (e.cancelled || !e.vehicle) continue;
-    if (e.category.includes("Diesel")) fuel.set(e.vehicle, (fuel.get(e.vehicle) ?? 0) + e.amount);
+    if (e.category.includes("Diesel")) fuel.set(e.vehicle, (fuel.get(e.vehicle) ?? 0) + Number(e.amount || 0));
   }
   const fRanked = [...fuel.entries()].sort((a, b) => b[1] - a[1]);
   if (fRanked.length) insights.push({ label: "Highest fuel cost", value: fRanked[0][0], sub: `₹${fRanked[0][1].toLocaleString("en-IN")}`, tone: "bad" });
@@ -282,7 +283,7 @@ export function businessInsights(args: {
   for (const e of args.expenses) {
     if (e.cancelled || !e.vehicle) continue;
     if (e.category.includes("Repair") || e.category.includes("Maintenance") || e.category.includes("Tyre")) {
-      maint.set(e.vehicle, (maint.get(e.vehicle) ?? 0) + e.amount);
+      maint.set(e.vehicle, (maint.get(e.vehicle) ?? 0) + Number(e.amount || 0));
     }
   }
   const mRanked = [...maint.entries()].sort((a, b) => b[1] - a[1]);
@@ -290,14 +291,14 @@ export function businessInsights(args: {
 
   // Most productive driver
   const drvTons = new Map<string, number>();
-  for (const t of args.trips) drvTons.set(t.driver, (drvTons.get(t.driver) ?? 0) + t.weight);
+  for (const t of args.trips) drvTons.set(t.driver, (drvTons.get(t.driver) ?? 0) + Number(t.weight || 0));
   const dRanked = [...drvTons.entries()].sort((a, b) => b[1] - a[1]);
   if (dRanked.length) insights.push({ label: "Most productive driver", value: dRanked[0][0], sub: `${dRanked[0][1]} MT moved`, tone: "good" });
 
   // Fast/slow paying — by collected/invoiced ratio
   const ratios: Array<[string, number]> = args.customers.map((c): [string, number] => {
-    const inv = args.invoices.filter((i) => i.party === c.name).reduce((a, i) => a + i.amount, 0);
-    const pay = args.payments.filter((p) => p.party === c.name && p.direction === "In").reduce((a, p) => a + p.amount, 0);
+    const inv = args.invoices.filter((i) => i.party === c.name).reduce((a, i) => a + Number(i.amount || 0), 0);
+    const pay = args.payments.filter((p) => p.party === c.name && p.direction === "In").reduce((a, p) => a + Number(p.amount || 0), 0);
     return [c.name, inv ? pay / inv : 0];
   }).filter((r) => r[1] > 0);
   ratios.sort((a, b) => b[1] - a[1]);

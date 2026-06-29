@@ -16,15 +16,21 @@ export function inRange(date: string, r: DateRange): boolean {
   return true;
 }
 
+function getLocalDate(d: Date): Date {
+  const offset = d.getTimezoneOffset();
+  return new Date(d.getTime() - offset * 60 * 1000);
+}
+
 function isoDaysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return getLocalDate(d).toISOString().slice(0, 10);
 }
 
 function monthStart(): string {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  const start = new Date(d.getFullYear(), d.getMonth(), 1);
+  return getLocalDate(start).toISOString().slice(0, 10);
 }
 
 const PRESETS: { label: string; range: () => DateRange }[] = [

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 export type FieldType = "text" | "number" | "date" | "select" | "textarea";
 
@@ -23,6 +24,7 @@ export interface FieldDef {
   required?: boolean;
   placeholder?: string;
   half?: boolean;
+  disabled?: boolean;
 }
 
 interface Props<T extends Record<string, unknown>> {
@@ -51,6 +53,7 @@ export function EntityDialog<T extends Record<string, unknown>>({
   disabled = false,
 }: Props<T>) {
   const [values, setValues] = useState<Record<string, unknown>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const prevOpenRef = useRef(open);
 
   useEffect(() => {
@@ -62,6 +65,7 @@ export function EntityDialog<T extends Record<string, unknown>>({
         base[f.name] = seed ?? "";
       });
       setValues(base);
+      setErrors({});
     }
     prevOpenRef.current = open;
   }, [open, initial, fields]);
@@ -84,12 +88,36 @@ export function EntityDialog<T extends Record<string, unknown>>({
   }
 
   async function handleSave() {
+    const newErrors: Record<string, string> = {};
     for (const f of fields) {
-      if (f.required && !values[f.name] && values[f.name] !== 0) {
-        return;
+      const val = values[f.name];
+      const strVal = String(val ?? "").trim();
+      
+      if (f.required && !strVal && val !== 0) {
+        newErrors[f.name] = `${f.label} is required.`;
+      } else if (strVal) {
+        if (f.name.toLowerCase().includes("email") && !/\S+@\S+\.\S+/.test(strVal)) {
+          newErrors[f.name] = "Please enter a valid email address.";
+        } else if ((f.name === "mobile" || f.name === "phone") && !/^\d{10}$/.test(strVal.replace(/[-+ ]/g, ""))) {
+          newErrors[f.name] = "Phone number must be exactly 10 digits.";
+        } else if (f.name === "gst" && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(strVal.toUpperCase())) {
+          newErrors[f.name] = "Please enter a valid GSTIN format (15 characters).";
+        } else if (f.type === "number" && Number(val) < 0) {
+          newErrors[f.name] = `${f.label} cannot be negative.`;
+        }
       }
     }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      const firstErrorField = Object.keys(newErrors)[0];
+      const el = document.getElementById(firstErrorField);
+      if (el) el.focus();
+      return;
+    }
+
     try {
+      setErrors({});
       await Promise.resolve(onSubmit(values as T));
       onOpenChange(false);
     } catch {
@@ -98,70 +126,113 @@ export function EntityDialog<T extends Record<string, unknown>>({
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      e.preventDefault();
+      handleSave();
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{mode === "create" ? `New ${title}` : `Edit ${title}`}</DialogTitle>
-          {description ? <DialogDescription>{description}</DialogDescription> : null}
-        </DialogHeader>
+        <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} onKeyDown={handleKeyDown}>
+          <DialogHeader>
+            <DialogTitle>{mode === "create" ? `New ${title}` : `Edit ${title}`}</DialogTitle>
+            {description ? <DialogDescription>{description}</DialogDescription> : null}
+          </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-3 py-2">
-          {fields.map((f) => (
-            <div
-              key={f.name}
-              className={`grid gap-1.5 ${f.half ? "col-span-1" : "col-span-2"}`}
-            >
-              <Label htmlFor={f.name}>
-                {f.label}
-                {f.required ? <span className="ml-0.5 text-destructive">*</span> : null}
-              </Label>
-              {f.type === "select" ? (
-                <select
-                  id={f.name}
-                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-                  value={String(values[f.name] ?? "")}
-                  disabled={disabled}
-                  onChange={(e) => set(f.name, e.target.value)}
-                >
-                  <option value="">Select…</option>
-                  {f.options?.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              ) : f.type === "textarea" ? (
-                <Textarea
-                  id={f.name}
-                  value={String(values[f.name] ?? "")}
-                  placeholder={f.placeholder}
-                  disabled={disabled}
-                  onChange={(e) => set(f.name, e.target.value)}
-                />
-              ) : (
-                <Input
-                  id={f.name}
-                  type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
-                  value={String(values[f.name] ?? "")}
-                  placeholder={f.placeholder}
-                  disabled={disabled}
-                  onChange={(e) => set(f.name, e.target.value)}
-                  className="bg-background"
-                />
-              )}
+          <div className="grid grid-cols-2 gap-3 py-2">
+            {fields.map((f) => (
+              <div
+                key={f.name}
+                className={`grid gap-1.5 ${f.half ? "col-span-1" : "col-span-2"}`}
+              >
+                <Label htmlFor={f.name}>
+                  {f.label}
+                  {f.required ? <span className="ml-0.5 text-destructive">*</span> : null}
+                </Label>
+                {f.type === "select" ? (
+                  <select
+                    id={f.name}
+                    className={cn(
+                      "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+                      errors[f.name] && "border-destructive focus-visible:ring-destructive"
+                    )}
+                    value={String(values[f.name] ?? "")}
+                    disabled={disabled || f.disabled}
+                    onChange={(e) => set(f.name, e.target.value)}
+                  >
+                    <option value="">Select…</option>
+                    {f.options?.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : f.type === "textarea" ? (
+                  <Textarea
+                    id={f.name}
+                    className={cn(
+                      "min-h-[60px] bg-background",
+                      errors[f.name] && "border-destructive focus-visible:ring-destructive"
+                    )}
+                    value={String(values[f.name] ?? "")}
+                    placeholder={f.placeholder}
+                    disabled={disabled || f.disabled}
+                    onChange={(e) => set(f.name, e.target.value)}
+                  />
+                ) : (
+                  <Input
+                    id={f.name}
+                    type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
+                    value={String(values[f.name] ?? "")}
+                    placeholder={f.placeholder}
+                    disabled={disabled || f.disabled}
+                    onChange={(e) => set(f.name, e.target.value)}
+                    className={cn(
+                      "bg-background",
+                      errors[f.name] && "border-destructive focus-visible:ring-destructive"
+                    )}
+                  />
+                )}
+                {errors[f.name] && (
+                  <p className="mt-1 text-[11px] text-destructive">{errors[f.name]}</p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {computed ? <div className="pt-1">{computed(values as T)}</div> : null}
+
+          {mode === "edit" && initial && (
+            <div className="mt-2 border-t border-border pt-3 text-[11px] text-muted-foreground flex justify-between">
+              <div>
+                {(initial as any).createdAt || (initial as any).created_at ? (
+                  <span>
+                    Created: {new Date((initial as any).createdAt || (initial as any).created_at).toLocaleString("en-IN")}
+                  </span>
+                ) : null}
+              </div>
+              <div>
+                {(initial as any).updatedAt || (initial as any).updated_at ? (
+                  <span>
+                    Last Updated: {new Date((initial as any).updatedAt || (initial as any).updated_at).toLocaleString("en-IN")}
+                  </span>
+                ) : null}
+              </div>
             </div>
-          ))}
-        </div>
+          )}
 
-        {computed ? <div className="pt-1">{computed(values as T)}</div> : null}
-
-        <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-          <Button disabled={disabled} onClick={handleSave}>{mode === "create" ? "Save" : "Update"}</Button>
-        </DialogFooter>
+          <DialogFooter className="mt-4 gap-2 sm:gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+            <Button type="submit" disabled={disabled}>
+              {disabled ? "Saving..." : (mode === "create" ? "Save" : "Update")}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

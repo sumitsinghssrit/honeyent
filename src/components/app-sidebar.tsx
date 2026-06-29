@@ -43,7 +43,14 @@ const sections = [
   {
     label: "Operations",
     items: [
+      { title: "Deal Register", url: "/deals", icon: Receipt },
       { title: "Operations Register", url: "/operations", icon: Layers },
+      { title: "Orders Page", url: "/orders", icon: ShoppingCart },
+      { title: "Weigh Slip", url: "/weighbridge", icon: Scale },
+      { title: "Trip Details", url: "/trips", icon: Truck },
+      { title: "Delivery Challan", url: "/dispatch", icon: Receipt },
+      { title: "Sales Invoices", url: "/saleinvoice", icon: Receipt },
+      { title: "Purchase Invoices", url: "/purchaseinvoice", icon: Receipt },
     ],
   },
   {
@@ -54,13 +61,19 @@ const sections = [
       { title: "Products", url: "/products", icon: Package },
       { title: "Vehicles", url: "/vehicles", icon: Bus },
       { title: "Drivers", url: "/drivers", icon: IdCard },
-      { title: "HSN Codes", url: "/hsn", icon: BookOpen }
+      { title: "HSN Codes", url: "/hsn", icon: BookOpen },
+      { title: "Expense Heads", url: "/expensesheads", icon: BookOpen },
     ],
   },
   {
     label: "Finance",
     items: [
       { title: "Reports", url: "/reports", icon: BarChart3 },
+      { title: "Control Tower", url: "/control-tower", icon: RadioTower },
+      { title: "Executive Dashboard", url: "/executive", icon: Wallet },
+      { title: "Ledger", url: "/ledger", icon: IdCard },
+      { title: "Cashbook", url: "/cashbook", icon: Wallet },
+      { title: "Expenses", url: "/expenses", icon: Wallet }
     ],
   },
   {

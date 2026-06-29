@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { loadCompany, saveCompany, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company";
-import { useErp } from "@/lib/store";
+import { loadCompany, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company";
+import { useErp, loadBackendData } from "@/lib/store";
+import { saveCompanyProfile } from "@/lib/api/clients";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({ meta: [{ title: "Settings — Honey Enterprises ERP" }] }),
@@ -23,9 +24,14 @@ function SettingsPage() {
 
   useEffect(() => setC(loadCompany()), []);
 
-  function save() {
-    saveCompany(c);
-    toast.success("Company profile saved — will appear on every PDF");
+  async function save() {
+    try {
+      await saveCompanyProfile(c);
+      await loadBackendData();
+      toast.success("✅ Company profile saved successfully to database.");
+    } catch (err) {
+      toast.error("Failed to save profile: " + String(err));
+    }
   }
 
   function exportData() {
@@ -69,10 +75,10 @@ function SettingsPage() {
   function field(k: keyof CompanyProfile, label: string, full?: boolean) {
     return (
       <div className={`grid gap-1.5 ${full ? "col-span-2" : ""}`}>
-        <Label className="text-xs">{label}</Label>
+        <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
         {k === "address" || k === "bank"
-          ? <Textarea rows={2} value={c[k]} onChange={(e) => setC({ ...c, [k]: e.target.value })} />
-          : <Input value={c[k]} onChange={(e) => setC({ ...c, [k]: e.target.value })} />}
+          ? <Textarea rows={2} value={c[k] || ""} onChange={(e) => setC({ ...c, [k]: e.target.value })} className="bg-background" />
+          : <Input value={c[k] || ""} onChange={(e) => setC({ ...c, [k]: e.target.value })} className="bg-background" />}
       </div>
     );
   }
@@ -81,41 +87,81 @@ function SettingsPage() {
     <div>
       <PageHeader title="Settings" description="Company profile, owner contact, data backup & restore." />
       <div className="grid gap-6 p-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm lg:col-span-2">
-          <div className="mb-4 flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-primary" />
-            <h2 className="font-display text-base font-semibold">Company profile</h2>
+        <div className="space-y-6 lg:col-span-2">
+          {/* Card 1: Company Profile */}
+          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-2 border-b pb-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              <div>
+                <h2 className="font-display text-base font-semibold">Company Identity</h2>
+                <p className="text-xs text-muted-foreground">General details used on invoices and weigh slips.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {field("name", "Company Name")}
+              {field("gstin", "GSTIN")}
+              {field("tagline", "Tagline", true)}
+              {field("address", "Address", true)}
+              {field("city", "City")}
+              {field("state", "State")}
+              {field("logoText", "Logo Text / Header Name")}
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            {field("name", "Company name")}
-            {field("gstin", "GSTIN")}
-            {field("tagline", "Tagline", true)}
-            {field("address", "Address", true)}
-            {field("phone", "Owner phone (WhatsApp)")}
-            {field("email", "Owner email")}
-            {field("financialYear", "Financial year", true)}
-            {field("bank", "Bank details", true)}
-            {field("upi", "UPI ID")}
+
+          {/* Card 2: Owner Details */}
+          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-2 border-b pb-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              <div>
+                <h2 className="font-display text-base font-semibold">Owner & Contact Details</h2>
+                <p className="text-xs text-muted-foreground">Contact details for sending invoices and automated alerts.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {field("ownerName", "Owner Name")}
+              {field("ownerPhone", "Owner Phone (WhatsApp)")}
+              {field("ownerEmail", "Owner Email")}
+              {field("phone", "Alternate Phone")}
+              {field("email", "Alternate Email")}
+            </div>
           </div>
-          <div className="mt-4 flex justify-end">
-            <Button onClick={save}>Save profile</Button>
+
+          {/* Card 3: Billing & Financials */}
+          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-2 border-b pb-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              <div>
+                <h2 className="font-display text-base font-semibold">Billing & Financial Details</h2>
+                <p className="text-xs text-muted-foreground">Bank account details and financial settings for receipts.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {field("bank", "Bank Account Details", true)}
+              {field("upi", "UPI ID")}
+              {field("financialYear", "Financial Year")}
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button size="lg" className="px-8 font-semibold shadow-md" onClick={save}>Save All Settings</Button>
           </div>
         </div>
 
         <div className="flex flex-col gap-4">
           <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-            <h2 className="mb-3 font-display text-base font-semibold">Quick contact</h2>
+            <h2 className="mb-3 font-display text-base font-semibold">Quick Contact</h2>
             <ul className="space-y-2 text-sm">
-              <li className="flex items-center gap-2"><Phone className="h-4 w-4 text-primary" />{c.phone}</li>
-              <li className="flex items-center gap-2"><Mail className="h-4 w-4 text-primary" />{c.email}</li>
+              {c.ownerName && <li className="font-semibold text-foreground">{c.ownerName}</li>}
+              <li className="flex items-center gap-2"><Phone className="h-4 w-4 text-primary" />{c.ownerPhone || c.phone}</li>
+              <li className="flex items-center gap-2"><Mail className="h-4 w-4 text-primary" />{c.ownerEmail || c.email}</li>
             </ul>
             <p className="mt-3 text-xs text-muted-foreground">
-              All PDF documents, WhatsApp shares and email shares use these contacts.
+              All PDF documents, WhatsApp shares, and email shares use these contacts.
             </p>
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-            <h2 className="mb-3 font-display text-base font-semibold">Data backup</h2>
+            <h2 className="mb-3 font-display text-base font-semibold">Data Backup</h2>
             <p className="mb-3 text-xs text-muted-foreground">
               Export your entire ERP data as JSON or restore from a previous backup.
             </p>

@@ -169,11 +169,13 @@ export const statusTone: Record<OrderStatus, string> = {
 };
 
 export function inr(n: number): string {
+  if (n === null || n === undefined || isNaN(n)) return "₹0";
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 }
 
 // For PDF generation - returns number without currency symbol to avoid encoding issues
 export function pdfNumber(n: number): string {
+  if (n === null || n === undefined || isNaN(n)) return "0";
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(n);
 }
 

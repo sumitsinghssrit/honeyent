@@ -11,8 +11,8 @@ const idOrName = z.union([z.coerce.number(), z.string().min(1)]);
 const createDeliveryChallanSchema = z.object({
     challanNo: z.string().min(1).optional(),
     challanDate: z.string(),
-    orderId: z.coerce.number().optional(),
-    dealId: z.coerce.number().optional(),
+    orderId: z.string().optional(),
+    dealId: z.string().optional(),
     customerId: idOrName.optional(),
     customer: z.string().min(1).optional(),
     productId: idOrName.optional(),
@@ -27,8 +27,8 @@ const createDeliveryChallanSchema = z.object({
 const updateDeliveryChallanSchema = z.object({
     challanNo: z.string().min(1).optional(),
     challanDate: z.string().optional(),
-    orderId: z.coerce.number().optional(),
-    dealId: z.coerce.number().optional(),
+    orderId: z.string().optional(),
+    dealId: z.string().optional(),
     customerId: idOrName.optional(),
     customer: z.string().min(1).optional(),
     productId: idOrName.optional(),

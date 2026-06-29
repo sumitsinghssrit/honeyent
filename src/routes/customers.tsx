@@ -1,7 +1,8 @@
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus, Pencil, Ban, Download, Eye } from "lucide-react";
 import { toast } from "sonner";
+
 
 import { PageHeader } from "@/components/page-header";
 import { ListShell } from "@/components/list-shell";
@@ -14,6 +15,7 @@ import { useErp, active, type CCustomer, loadBackendData } from "@/lib/store";
 import { EntityDialog, CancelDialog, type FieldDef } from "@/components/entity-dialog";
 import { checkCustomer } from "@/lib/dedupe";
 import { generatePdf } from "@/lib/pdf";
+import { exportExcel } from "@/lib/export";
 import { createCustomer, updateCustomer, deleteCustomer } from "@/lib/api/clients";
 
 export const Route = createFileRoute("/customers")({
@@ -76,10 +78,10 @@ function CustomersPage() {
 
       if (editing) {
         await updateCustomer(String(editing.id), data);
-        toast.success(`${editing.name} updated`);
+        toast.success(`✅ Customer updated successfully.`);
       } else {
         await createCustomer(data);
-        toast.success(`Customer ${v.name} added`);
+        toast.success(`✅ Customer saved successfully.`);
       }
 
       await loadBackendData();
@@ -102,102 +104,117 @@ function CustomersPage() {
     });
   }
 
+  function exportExcelData() {
+    exportExcel(
+      "Customer Master",
+      ["Code", "Name", "GST", "Mobile", "City", "Credit Limit", "Outstanding", "Status"],
+      active(customers).map((c) => [c.code, c.name, c.gst, c.mobile, c.city, c.creditLimit, c.outstanding, c.status]),
+      [{ label: "Total outstanding", value: inr(active(customers).reduce((a, c) => a + c.outstanding, 0)) }]
+    );
+  }
+
+  const router = useRouter();
+  const isList = router.state.location.pathname === "/customers";
+
   return (
     <>
-      <div>
-        <PageHeader
-          title="Customers"
-          description="Customer master with GST, credit limits and outstanding."
-          actions={
-            <>
-              <Button variant="outline" size="sm" onClick={exportPdf}><Download className="mr-1 h-4 w-4" />Export PDF</Button>
-              <Button size="sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus className="mr-1 h-4 w-4" />New customer</Button>
-            </>
-          }
-        />
-        <div className="p-6">
-          <ListShell
-            toolbar={
+      {isList ? (
+        <div>
+          <PageHeader
+            title="Customers"
+            description="Customer master with GST, credit limits and outstanding."
+            actions={
               <>
-                <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, GST, mobile…" className="h-9 max-w-sm bg-background" />
-                <p className="text-xs text-muted-foreground">{visible.length} customers</p>
+                <Button variant="outline" size="sm" onClick={exportExcelData}><Download className="mr-1 h-4 w-4" />Export Excel</Button>
+                <Button variant="outline" size="sm" onClick={exportPdf}><Download className="mr-1 h-4 w-4" />Export PDF</Button>
+                <Button size="sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus className="mr-1 h-4 w-4" />New customer</Button>
               </>
             }
-          >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>GST</TableHead>
-                  <TableHead>Mobile</TableHead>
-                  <TableHead>City</TableHead>
-                  <TableHead className="text-right">Credit Limit</TableHead>
-                  <TableHead className="text-right">Outstanding</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visible.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-mono text-xs">{c.code}</TableCell>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell className="font-mono text-xs">{c.gst}</TableCell>
-                    <TableCell className="font-mono text-xs">{c.mobile}</TableCell>
-                    <TableCell>{c.city}</TableCell>
-                    <TableCell className="text-right tabular-nums">{inr(c.creditLimit)}</TableCell>
-                    <TableCell className={`text-right tabular-nums ${c.outstanding > 0 ? "text-warning" : "text-muted-foreground"}`}>{inr(c.outstanding)}</TableCell>
-                    <TableCell><Badge variant="outline" className={c.status === "Active" ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}>{c.status}</Badge></TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link to="/customers/$id" params={{ id: String(c.id) }}><Eye className="h-3.5 w-3.5" /></Link>
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => { setEditing(c); setOpen(true); }}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setCancelTarget(c)}>
-                        <Ban className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ListShell>
-        </div>
-
-        <EntityDialog
-          open={open}
-          onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}
-          title="Customer"
-          fields={fields}
-          mode={editing ? "edit" : "create"}
-          initial={editing ?? { status: "Active" }}
-          onSubmit={handleSubmit}
-          disabled={loading}
-        />
-        <CancelDialog
-          open={!!cancelTarget}
-          onOpenChange={(v) => { if (!v) setCancelTarget(null); setOpen(false); }}
-          title={cancelTarget ? `Remove ${cancelTarget.name}` : "Remove"}
-          onConfirm={async (remark) => {
-            if (cancelTarget) {
-              setLoading(true);
-              try {
-                await deleteCustomer(String(cancelTarget.id));
-                toast.warning(`${cancelTarget.name} removed`, { description: remark });
-                await loadBackendData();
-              } catch (err) {
-                toast.error(String(err));
-              } finally {
-                setLoading(false);
-                setCancelTarget(null);
+          />
+          <div className="p-6">
+            <ListShell
+              toolbar={
+                <>
+                  <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, GST, mobile…" className="h-9 max-w-sm bg-background" />
+                  <p className="text-xs text-muted-foreground">{visible.length} customers</p>
+                </>
               }
-            }
-          }}
-        />
-      </div>
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>GST</TableHead>
+                    <TableHead>Mobile</TableHead>
+                    <TableHead>City</TableHead>
+                    <TableHead className="text-right">Credit Limit</TableHead>
+                    <TableHead className="text-right">Outstanding</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visible.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-mono text-xs">{c.code}</TableCell>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell className="font-mono text-xs">{c.gst}</TableCell>
+                      <TableCell className="font-mono text-xs">{c.mobile}</TableCell>
+                      <TableCell>{c.city}</TableCell>
+                      <TableCell className="text-right tabular-nums">{inr(c.creditLimit)}</TableCell>
+                      <TableCell className={`text-right tabular-nums ${c.outstanding > 0 ? "text-warning" : "text-muted-foreground"}`}>{inr(c.outstanding)}</TableCell>
+                      <TableCell><Badge variant="outline" className={c.status === "Active" ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}>{c.status}</Badge></TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button variant="ghost" size="sm" asChild title="View 360">
+                          <Link to="/customers/$id" params={{ id: String(c.id) }}><Eye className="h-3.5 w-3.5" /></Link>
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setEditing(c); setOpen(true); }} title="Edit">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setCancelTarget(c)} title="Remove Customer">
+                          <Ban className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ListShell>
+          </div>
+
+          <EntityDialog
+            open={open}
+            onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}
+            title="Customer"
+            fields={fields}
+            mode={editing ? "edit" : "create"}
+            initial={editing ?? { status: "Active" }}
+            onSubmit={handleSubmit}
+            disabled={loading}
+          />
+          <CancelDialog
+            open={!!cancelTarget}
+            onOpenChange={(v) => { if (!v) setCancelTarget(null); setOpen(false); }}
+            title={cancelTarget ? `Remove ${cancelTarget.name}` : "Remove"}
+            onConfirm={async (remark) => {
+              if (cancelTarget) {
+                setLoading(true);
+                try {
+                  await deleteCustomer(String(cancelTarget.id));
+                  toast.warning(`${cancelTarget.name} removed`, { description: remark });
+                  await loadBackendData();
+                } catch (err) {
+                  toast.error(String(err));
+                } finally {
+                  setLoading(false);
+                  setCancelTarget(null);
+                }
+              }
+            }}
+          />
+        </div>
+      ) : null}
       <Outlet />
     </>
   );

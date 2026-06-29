@@ -31,7 +31,7 @@ const createOrderSchema = z.object({
     remarks: z.string().optional(),
     status: z.string().optional(),
     dispatchNo: z.string().optional(),
-    dealId: z.coerce.number().optional(),
+    dealId: z.string().optional(),
 }).refine((data) => !!(data.customerId || data.customer), {
     message: 'customerId or customer is required',
     path: ['customerId', 'customer'],

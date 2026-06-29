@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { inr, statusTone } from "@/lib/mock-data";
-import { useErp, active, loadBackendData, newId } from "@/lib/store";
+import { useErp, active, loadBackendData, newId, getLocalDateString } from "@/lib/store";
 import { nextNo } from "@/lib/numbering";
+import { createPayment } from "@/lib/api/clients";
 import { customerProfile } from "@/lib/insights";
 import { DateRangeFilter, EMPTY_RANGE, inRange, type DateRange } from "@/components/date-range-filter";
 
@@ -87,27 +88,27 @@ function Customer360() {
   );
 
   const recordReceipt = () => {
-    if (receiptAmount <= 0) {
-      toast.error("Enter a receipt amount");
-      return;
-    }
-    const no = nextNo("PAY" as never) || `PAY/${Date.now().toString().slice(-6)}`;
-    useErp.getState().add("payments", {
-      id: newId("pay"),
-      no,
-      date: new Date().toISOString().slice(0, 10),
-      direction: "In",
-      party: customer.name,
-      mode: receiptMode,
+    createPayment({
+      paymentDate: getLocalDateString(),
+      partyName: customer.name,
+      partyType: "Customer",
       amount: receiptAmount,
+      paymentMode: receiptMode,
       reference: receiptReference,
-      note: receiptNote,
-    });
-    toast.success("Receipt recorded", { description: `${inr(receiptAmount)} from ${customer.name}` });
-    setReceiptOpen(false);
-    setReceiptAmount(0);
-    setReceiptReference("");
-    setReceiptNote("");
+      notes: receiptNote,
+      paymentDirection: "In",
+    })
+      .then(async () => {
+        await loadBackendData();
+        toast.success("Receipt recorded", { description: `${inr(receiptAmount)} from ${customer.name}` });
+        setReceiptOpen(false);
+        setReceiptAmount(0);
+        setReceiptReference("");
+        setReceiptNote("");
+      })
+      .catch((error) => {
+        toast.error("Failed to save receipt", { description: error.message });
+      });
   };
 
   return (
@@ -282,7 +283,7 @@ function Customer360() {
             <DialogDescription>{customer.name} • Outstanding {inr(balance)}</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Date"><Input type="date" value={new Date().toISOString().slice(0, 10)} readOnly /></Field>
+            <Field label="Date"><Input type="date" value={getLocalDateString()} readOnly /></Field>
             <Field label="Amount"><Input type="number" value={receiptAmount || ""} onChange={(e) => setReceiptAmount(Number(e.target.value))} /></Field>
             <Field label="Mode">
               <select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={receiptMode} onChange={(e) => setReceiptMode(e.target.value as typeof receiptMode)}>

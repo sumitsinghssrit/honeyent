@@ -11,11 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { inr } from "@/lib/mock-data";
-import { useErp, newId, active, EXPENSE_CATEGORIES, type Expense } from "@/lib/store";
+import { useErp, newId, active, EXPENSE_CATEGORIES, type Expense, loadBackendData, getLocalDateString } from "@/lib/store";
 import { EntityDialog, CancelDialog, type FieldDef } from "@/components/entity-dialog";
 import { generatePdf } from "@/lib/pdf";
 import { DateRangeFilter, EMPTY_RANGE, inRange, type DateRange } from "@/components/date-range-filter";
 import { nextNo } from "@/lib/numbering";
+import { createExpense, updateExpense } from "@/lib/api/clients";
+import { exportExcel } from "@/lib/export";
 
 export const Route = createFileRoute("/expenses")({
   head: () => ({ meta: [{ title: "Expenses — Honey Enterprises ERP" }] }),
@@ -40,7 +42,7 @@ function ExpensesPage() {
   const autoNo = editing ? editing.no : nextNo("EXP");
 
   const fields: FieldDef[] = [
-    { name: "no", label: "Voucher No (auto)", required: true, half: true, placeholder: autoNo },
+    { name: "no", label: "Voucher No (auto)", required: true, half: true, disabled: true },
     { name: "date", label: "Date", type: "date", required: true, half: true },
     { name: "category", label: "Category", type: "select", required: true, half: true,
       options: EXPENSE_CATEGORIES.map((c) => ({ label: c, value: c })) },
@@ -74,6 +76,12 @@ function ExpensesPage() {
   const repair = live.filter((e) => e.category === "Truck Repair" || e.category === "Truck Maintenance").reduce((a, e) => a + e.amount, 0);
 
   function handleSubmit(v: Record<string, unknown>) {
+    if (v.driver && v.vehicle) {
+      toast.error("Please select either a Driver or a Vehicle, not both.", {
+        description: "An expense voucher can be associated with a driver OR a vehicle, but not both at the same time."
+      });
+      throw new Error("Validation failed");
+    }
     const data = {
       no: String(v.no || autoNo),
       date: String(v.date),
@@ -85,14 +93,45 @@ function ExpensesPage() {
       amount: Number(v.amount),
       remark: v.remark ? String(v.remark) : undefined,
     };
-    if (editing) {
-      update("expenses", editing.id, data);
-      toast.success(`Voucher ${editing.no} updated`);
-    } else {
-      add("expenses", { id: newId("ex"), ...data });
-      toast.success(`Voucher ${data.no} recorded`, { description: `${data.category} • ${inr(data.amount)}` });
-    }
-    setEditing(null);
+
+    // Save to API
+    const apiCall = editing
+      ? updateExpense(String(editing.id), {
+          expenseNo: data.no,
+          expenseDate: data.date,
+          category: data.category,
+          vehicle: data.vehicle,
+          driver: data.driver,
+          paidTo: data.paidTo,
+          paymentMode: data.mode,
+          amount: data.amount,
+          remarks: data.remark,
+        })
+      : createExpense({
+          expenseNo: data.no,
+          expenseDate: data.date,
+          category: data.category,
+          vehicle: data.vehicle,
+          driver: data.driver,
+          paidTo: data.paidTo,
+          paymentMode: data.mode,
+          amount: data.amount,
+          remarks: data.remark,
+        });
+
+    apiCall
+      .then(async () => {
+        await loadBackendData();
+        if (editing) {
+          toast.success(`Voucher ${editing.no} updated`);
+        } else {
+          toast.success(`Voucher ${data.no} recorded`, { description: `${data.category} • ${inr(data.amount)}` });
+        }
+        setEditing(null);
+      })
+      .catch((error) => {
+        toast.error("Failed to save expense", { description: error.message });
+      });
   }
 
   function exportPdf() {
@@ -110,6 +149,19 @@ function ExpensesPage() {
     });
   }
 
+  function exportExcelVouchers() {
+    exportExcel(
+      "Expense Register",
+      ["Voucher", "Date", "Category", "Paid To", "Vehicle/Driver", "Mode", "Amount"],
+      live.map((e) => [e.no, e.date, e.category, e.paidTo, e.vehicle || e.driver || "—", e.mode, e.amount]),
+      [
+        { label: "Total expenses", value: inr(total) },
+        { label: "Driver salary", value: inr(salary) },
+        { label: "Repair + maintenance", value: inr(repair) },
+      ]
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -117,6 +169,7 @@ function ExpensesPage() {
         description="Driver salaries, truck repair, maintenance, fuel, toll and every operating cost. Auto-posts to cashbook."
         actions={
           <>
+            <Button variant="outline" size="sm" onClick={exportExcelVouchers} className="mr-2"><Download className="mr-1 h-4 w-4" />Export Excel</Button>
             <Button variant="outline" size="sm" onClick={exportPdf}><Download className="mr-1 h-4 w-4" />Export PDF</Button>
             <Button size="sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus className="mr-1 h-4 w-4" />New voucher</Button>
           </>
@@ -172,8 +225,8 @@ function ExpensesPage() {
                   <TableCell><Badge variant="outline">{e.mode}</Badge></TableCell>
                   <TableCell className="text-right tabular-nums font-semibold">{inr(e.amount)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">
-                    <Button variant="ghost" size="sm" disabled={e.cancelled} onClick={() => { setEditing(e); setOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="sm" disabled={e.cancelled} onClick={() => setCancelTarget(e)}><Ban className="h-3.5 w-3.5 text-destructive" /></Button>
+                    <Button variant="ghost" size="sm" disabled={e.cancelled} onClick={() => { setEditing(e); setOpen(true); }} title="Edit"><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" disabled={e.cancelled} onClick={() => setCancelTarget(e)} title="Cancel Voucher"><Ban className="h-3.5 w-3.5" /></Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -188,7 +241,7 @@ function ExpensesPage() {
         title="Expense Voucher"
         fields={fields}
         mode={editing ? "edit" : "create"}
-        initial={editing ?? { date: new Date().toISOString().slice(0, 10), mode: "Cash", category: "Diesel / Fuel" }}
+        initial={editing ?? { no: autoNo, date: getLocalDateString(), mode: "Cash", category: "Diesel / Fuel" }}
         onSubmit={handleSubmit}
       />
 
@@ -196,10 +249,20 @@ function ExpensesPage() {
         open={!!cancelTarget}
         onOpenChange={(v) => !v && setCancelTarget(null)}
         title={cancelTarget ? `Cancel ${cancelTarget.no}` : "Cancel"}
-        onConfirm={(remark) => {
+        onConfirm={async (remark) => {
           if (cancelTarget) {
-            cancel("expenses", cancelTarget.id, remark);
-            toast.warning(`Voucher ${cancelTarget.no} cancelled`, { description: remark });
+            try {
+              await updateExpense(String(cancelTarget.id), {
+                cancelled: true,
+                cancelRemark: remark,
+                cancelledAt: new Date().toISOString(),
+              });
+              await loadBackendData();
+              toast.warning(`Voucher ${cancelTarget.no} cancelled`, { description: remark });
+            } catch (err: any) {
+              toast.error("Failed to cancel expense", { description: err.message });
+            }
+            setCancelTarget(null);
           }
         }}
       />

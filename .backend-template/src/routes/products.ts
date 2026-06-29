@@ -9,7 +9,7 @@ const router = Router();
 const createProductSchema = z.object({
     code: z.string().min(1).optional(),
     name: z.string().min(1),
-    hsnId: z.coerce.number().optional(),
+    hsnId: z.string().optional(),
     hsn: z.string().optional(),
     unit: z.string().default('MT'),
     gstRate: z.coerce.number().default(5),

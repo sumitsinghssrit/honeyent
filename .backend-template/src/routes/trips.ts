@@ -21,7 +21,7 @@ const createTripSchema = z.object({
     weight: z.coerce.number().positive(),
     revenue: z.coerce.number().nonnegative(),
     tripExpenses: z.coerce.number().nonnegative().default(0),
-    dealId: z.coerce.number().optional(),
+    dealId: z.string().optional(),
 }).refine((data) => !!(data.vehicle || data.vehicleId), {
     message: 'vehicle or vehicleId is required',
     path: ['vehicle', 'vehicleId'],
@@ -44,7 +44,7 @@ const updateTripSchema = z.object({
     revenue: z.coerce.number().nonnegative().optional(),
     tripExpenses: z.coerce.number().nonnegative().optional(),
     status: z.string().optional(),
-    dealId: z.coerce.number().optional(),
+    dealId: z.string().optional(),
 });
 
 router.get('/', asyncHandler(async (req, res) => {

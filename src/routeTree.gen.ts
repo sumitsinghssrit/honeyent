@@ -14,12 +14,16 @@ import { Route as VehiclesRouteImport } from './routes/vehicles'
 import { Route as TripsRouteImport } from './routes/trips'
 import { Route as SuppliersRouteImport } from './routes/suppliers'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SaleinvoiceRouteImport } from './routes/saleinvoice'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as PurchaseinvoiceRouteImport } from './routes/purchaseinvoice'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as OperationsRouteImport } from './routes/operations'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as LedgerRouteImport } from './routes/ledger'
 import { Route as HsnRouteImport } from './routes/hsn'
+import { Route as ExpensesheadsRouteImport } from './routes/expensesheads'
 import { Route as ExpensesRouteImport } from './routes/expenses'
 import { Route as ExecutiveRouteImport } from './routes/executive'
 import { Route as DriversRouteImport } from './routes/drivers'
@@ -59,9 +63,19 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SaleinvoiceRoute = SaleinvoiceRouteImport.update({
+  id: '/saleinvoice',
+  path: '/saleinvoice',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PurchaseinvoiceRoute = PurchaseinvoiceRouteImport.update({
+  id: '/purchaseinvoice',
+  path: '/purchaseinvoice',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductsRoute = ProductsRouteImport.update({
@@ -79,6 +93,11 @@ const OperationsRoute = OperationsRouteImport.update({
   path: '/operations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LedgerRoute = LedgerRouteImport.update({
   id: '/ledger',
   path: '/ledger',
@@ -87,6 +106,11 @@ const LedgerRoute = LedgerRouteImport.update({
 const HsnRoute = HsnRouteImport.update({
   id: '/hsn',
   path: '/hsn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExpensesheadsRoute = ExpensesheadsRouteImport.update({
+  id: '/expensesheads',
+  path: '/expensesheads',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExpensesRoute = ExpensesRouteImport.update({
@@ -165,12 +189,16 @@ export interface FileRoutesByFullPath {
   '/drivers': typeof DriversRouteWithChildren
   '/executive': typeof ExecutiveRoute
   '/expenses': typeof ExpensesRoute
+  '/expensesheads': typeof ExpensesheadsRoute
   '/hsn': typeof HsnRoute
   '/ledger': typeof LedgerRoute
+  '/login': typeof LoginRoute
   '/operations': typeof OperationsRoute
   '/orders': typeof OrdersRoute
   '/products': typeof ProductsRoute
+  '/purchaseinvoice': typeof PurchaseinvoiceRoute
   '/reports': typeof ReportsRoute
+  '/saleinvoice': typeof SaleinvoiceRoute
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRouteWithChildren
   '/trips': typeof TripsRoute
@@ -191,12 +219,16 @@ export interface FileRoutesByTo {
   '/drivers': typeof DriversRouteWithChildren
   '/executive': typeof ExecutiveRoute
   '/expenses': typeof ExpensesRoute
+  '/expensesheads': typeof ExpensesheadsRoute
   '/hsn': typeof HsnRoute
   '/ledger': typeof LedgerRoute
+  '/login': typeof LoginRoute
   '/operations': typeof OperationsRoute
   '/orders': typeof OrdersRoute
   '/products': typeof ProductsRoute
+  '/purchaseinvoice': typeof PurchaseinvoiceRoute
   '/reports': typeof ReportsRoute
+  '/saleinvoice': typeof SaleinvoiceRoute
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRouteWithChildren
   '/trips': typeof TripsRoute
@@ -218,12 +250,16 @@ export interface FileRoutesById {
   '/drivers': typeof DriversRouteWithChildren
   '/executive': typeof ExecutiveRoute
   '/expenses': typeof ExpensesRoute
+  '/expensesheads': typeof ExpensesheadsRoute
   '/hsn': typeof HsnRoute
   '/ledger': typeof LedgerRoute
+  '/login': typeof LoginRoute
   '/operations': typeof OperationsRoute
   '/orders': typeof OrdersRoute
   '/products': typeof ProductsRoute
+  '/purchaseinvoice': typeof PurchaseinvoiceRoute
   '/reports': typeof ReportsRoute
+  '/saleinvoice': typeof SaleinvoiceRoute
   '/settings': typeof SettingsRoute
   '/suppliers': typeof SuppliersRouteWithChildren
   '/trips': typeof TripsRoute
@@ -246,12 +282,16 @@ export interface FileRouteTypes {
     | '/drivers'
     | '/executive'
     | '/expenses'
+    | '/expensesheads'
     | '/hsn'
     | '/ledger'
+    | '/login'
     | '/operations'
     | '/orders'
     | '/products'
+    | '/purchaseinvoice'
     | '/reports'
+    | '/saleinvoice'
     | '/settings'
     | '/suppliers'
     | '/trips'
@@ -272,12 +312,16 @@ export interface FileRouteTypes {
     | '/drivers'
     | '/executive'
     | '/expenses'
+    | '/expensesheads'
     | '/hsn'
     | '/ledger'
+    | '/login'
     | '/operations'
     | '/orders'
     | '/products'
+    | '/purchaseinvoice'
     | '/reports'
+    | '/saleinvoice'
     | '/settings'
     | '/suppliers'
     | '/trips'
@@ -298,12 +342,16 @@ export interface FileRouteTypes {
     | '/drivers'
     | '/executive'
     | '/expenses'
+    | '/expensesheads'
     | '/hsn'
     | '/ledger'
+    | '/login'
     | '/operations'
     | '/orders'
     | '/products'
+    | '/purchaseinvoice'
     | '/reports'
+    | '/saleinvoice'
     | '/settings'
     | '/suppliers'
     | '/trips'
@@ -325,12 +373,16 @@ export interface RootRouteChildren {
   DriversRoute: typeof DriversRouteWithChildren
   ExecutiveRoute: typeof ExecutiveRoute
   ExpensesRoute: typeof ExpensesRoute
+  ExpensesheadsRoute: typeof ExpensesheadsRoute
   HsnRoute: typeof HsnRoute
   LedgerRoute: typeof LedgerRoute
+  LoginRoute: typeof LoginRoute
   OperationsRoute: typeof OperationsRoute
   OrdersRoute: typeof OrdersRoute
   ProductsRoute: typeof ProductsRoute
+  PurchaseinvoiceRoute: typeof PurchaseinvoiceRoute
   ReportsRoute: typeof ReportsRoute
+  SaleinvoiceRoute: typeof SaleinvoiceRoute
   SettingsRoute: typeof SettingsRoute
   SuppliersRoute: typeof SuppliersRouteWithChildren
   TripsRoute: typeof TripsRoute
@@ -375,11 +427,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/saleinvoice': {
+      id: '/saleinvoice'
+      path: '/saleinvoice'
+      fullPath: '/saleinvoice'
+      preLoaderRoute: typeof SaleinvoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports': {
       id: '/reports'
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchaseinvoice': {
+      id: '/purchaseinvoice'
+      path: '/purchaseinvoice'
+      fullPath: '/purchaseinvoice'
+      preLoaderRoute: typeof PurchaseinvoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/products': {
@@ -403,6 +469,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OperationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ledger': {
       id: '/ledger'
       path: '/ledger'
@@ -415,6 +488,13 @@ declare module '@tanstack/react-router' {
       path: '/hsn'
       fullPath: '/hsn'
       preLoaderRoute: typeof HsnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/expensesheads': {
+      id: '/expensesheads'
+      path: '/expensesheads'
+      fullPath: '/expensesheads'
+      preLoaderRoute: typeof ExpensesheadsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/expenses': {
@@ -568,12 +648,16 @@ const rootRouteChildren: RootRouteChildren = {
   DriversRoute: DriversRouteWithChildren,
   ExecutiveRoute: ExecutiveRoute,
   ExpensesRoute: ExpensesRoute,
+  ExpensesheadsRoute: ExpensesheadsRoute,
   HsnRoute: HsnRoute,
   LedgerRoute: LedgerRoute,
+  LoginRoute: LoginRoute,
   OperationsRoute: OperationsRoute,
   OrdersRoute: OrdersRoute,
   ProductsRoute: ProductsRoute,
+  PurchaseinvoiceRoute: PurchaseinvoiceRoute,
   ReportsRoute: ReportsRoute,
+  SaleinvoiceRoute: SaleinvoiceRoute,
   SettingsRoute: SettingsRoute,
   SuppliersRoute: SuppliersRouteWithChildren,
   TripsRoute: TripsRoute,

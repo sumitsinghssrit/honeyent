@@ -5,9 +5,14 @@ import {
   HeadContent,
   Scripts,
   useRouter,
+  useNavigate,
+  Link,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { Bell, Command, Sparkles, Moon, Sun } from "lucide-react";
+import { Bell, Command, Sparkles, Moon, Sun, LogOut, AlertTriangle, Info, ShieldAlert } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useAlerts } from "@/components/alert-center";
+import { Badge } from "@/components/ui/badge";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -18,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { CommandPalette } from "@/components/command-palette";
 import { OneShotOrderDialog } from "@/components/one-shot-order";
+import { logout } from "@/lib/api/clients";
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
@@ -115,10 +121,58 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+const sevIcon = { critical: ShieldAlert, warning: AlertTriangle, info: Info } as const;
+const sevClass = {
+  critical: "bg-destructive/15 text-destructive border-destructive/30",
+  warning: "bg-warning/15 text-warning border-warning/30",
+  info: "bg-info/15 text-info border-info/30",
+} as const;
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const navigate = useNavigate();
+  const router = useRouter();
   const [oneShot, setOneShot] = useState(false);
   const { theme, toggleTheme, setTheme } = useTheme();
+  const [user, setUser] = useState<any>(null);
+  const alerts = useAlerts();
+
+  // Check if we're on the login page
+  const isLoginPage = router.state.location.pathname === "/login";
+
+  useEffect(() => {
+    // Check authentication
+    const token = localStorage.getItem("auth_token");
+    const userData = localStorage.getItem("user");
+
+    if (!token && !isLoginPage) {
+      navigate({ to: "/login" });
+      return;
+    }
+
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (e) {
+        console.error("Failed to parse user data");
+      }
+    }
+  }, [navigate, isLoginPage]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "p") {
+        e.preventDefault();
+        window.print();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     loadBackendData().catch((error) => {
@@ -130,6 +184,29 @@ function RootComponent() {
     // Initialize theme on mount
     setTheme(theme);
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("user");
+    navigate({ to: "/login" });
+  };
+
+  // If on login page, just render the outlet without sidebar
+  if (isLoginPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <div className="min-h-screen w-full">
+          <Outlet />
+        </div>
+        <Toaster richColors position="top-right" />
+      </QueryClientProvider>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -151,9 +228,53 @@ function RootComponent() {
                 <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => setOneShot(true)}>
                   <Sparkles className="mr-1 h-3.5 w-3.5" />One-Shot
                 </Button>
-                <Button variant="ghost" size="icon" aria-label="Notifications">
-                  <Bell className="h-4 w-4" />
-                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
+                      <Bell className="h-4 w-4" />
+                      {alerts.length > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[8px] font-bold text-destructive-foreground">
+                          {alerts.length}
+                        </span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0" align="end">
+                    <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                      <h3 className="font-display text-sm font-semibold">Smart alerts</h3>
+                      <Badge variant="outline" className="text-[10px]">{alerts.length}</Badge>
+                    </div>
+                    <ul className="max-h-80 divide-y divide-border overflow-y-auto">
+                      {alerts.length === 0 ? (
+                        <li className="px-4 py-6 text-center text-xs text-muted-foreground">All clear — nothing needs attention.</li>
+                      ) : (
+                        alerts.map((a) => {
+                          const Icon = sevIcon[a.severity] || Info;
+                          const inner = (
+                            <div className="flex items-start gap-3 px-4 py-2.5 transition hover:bg-muted/30">
+                              <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${sevClass[a.severity]}`}>
+                                <Icon className="h-3.5 w-3.5" />
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-medium text-foreground">{a.title}</p>
+                                <p className="text-[10px] text-muted-foreground">{a.category} • {a.detail}</p>
+                              </div>
+                            </div>
+                          );
+                          return (
+                            <li key={a.id}>
+                              {a.href ? (
+                                <Link to={a.href} className="block">
+                                  {inner}
+                                </Link>
+                              ) : inner}
+                            </li>
+                          );
+                        })
+                      )}
+                    </ul>
+                  </PopoverContent>
+                </Popover>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -167,13 +288,23 @@ function RootComponent() {
                     <Moon className="h-4 w-4" />
                   )}
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Logout"
+                  onClick={handleLogout}
+                  title="Logout"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
                 <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                    HE
+                    {user?.username?.[0]?.toUpperCase() || "A"}
                   </div>
                   <div className="hidden text-left leading-tight sm:block">
-                    <p className="text-xs font-medium text-foreground">Owner</p>
-                    <p className="text-[10px] text-muted-foreground">Honey Enterprises</p>
+                    <p className="text-xs font-medium text-foreground">{user?.username || "Admin"}</p>
+                    <p className="text-[10px] text-muted-foreground">{user?.role || "Administrator"}</p>
                   </div>
                 </div>
               </div>

@@ -1,5 +1,10 @@
-import { Pool, QueryResult } from 'pg';
+import pg from 'pg';
+import { QueryResult } from 'pg';
 import { config } from './index.ts';
+
+const { Pool } = pg;
+// Configure pg to return DATE columns as plain strings to prevent timezone shifts
+pg.types.setTypeParser(pg.types.builtins.DATE, (value) => value);
 
 const pool = new Pool({
     user: config.database.user,
